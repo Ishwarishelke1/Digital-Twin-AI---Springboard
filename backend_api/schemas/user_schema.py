@@ -60,6 +60,10 @@ class ActiveGoalResponse(BaseModel):
     target_date: datetime
     created_at: Optional[datetime]
     status: GoalStatus
+    # When the goal was first met. Null for goals completed before this field
+    # existed, and for goals never completed — see models/user.py for why it is
+    # stamped once and never cleared.
+    completed_at: Optional[datetime] = None
 
 
 class ActiveGoalCreateRequest(BaseModel):

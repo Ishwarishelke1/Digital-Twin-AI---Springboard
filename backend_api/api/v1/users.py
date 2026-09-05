@@ -68,6 +68,7 @@ def _serialize_user(user: User) -> UserResponse:
                 target_date=g.target_date,
                 created_at=g.created_at,
                 status=g.status,
+                completed_at=g.completed_at,
             )
             for g in user.active_goals
         ],
@@ -205,6 +206,12 @@ async def list_goals(current_user: CurrentUser) -> list[ActiveGoalResponse]:
             unit=g.unit,
             target_date=g.target_date,
             created_at=g.created_at,
+            # `status` is required on ActiveGoalResponse and was not passed here,
+            # so every call to this endpoint raised a Pydantic ValidationError and
+            # returned 500. It went unnoticed because the frontend reads goals from
+            # GET /users/me's active_goals rather than calling this route.
+            status=g.status,
+            completed_at=g.completed_at,
         )
         for g in current_user.active_goals
     ]

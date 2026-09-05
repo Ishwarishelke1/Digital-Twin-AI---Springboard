@@ -4,6 +4,7 @@ Same no-DB/mocked-I/O approach as tests/test_finance_service.py.
 """
 from datetime import datetime, timezone
 from decimal import Decimal
+from bson.decimal128 import Decimal128
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -34,10 +35,30 @@ def _patch_document_init():
 
 
 def _patch_goal_update():
-    """Mocks the atomic $inc call adjust_active_goal_progress makes against
-    User's raw Motor collection — returns the mock so a test can assert on
-    the exact update_one(...) calls it received."""
+    """Mocks the goal-progress write path against User's raw Motor collection.
+
+    The $inc now goes through find_one_and_update (adjust_active_goal_progress
+    needs the post-increment value to re-derive status), followed by a second
+    update_one only when status actually changed. The echoed goal below stays
+    well short of its target, so no status write fires and these tests stay
+    focused on progress movement.
+    """
     collection = MagicMock()
+
+    async def _echo(query, update, **kwargs):
+        return {
+            "active_goals": [
+                {
+                    "goal_id": query.get("active_goals.goal_id"),
+                    "current_value": Decimal128("1"),
+                    "target_value": Decimal128("100"),
+                    "status": "ACTIVE",
+                    "completed_at": None,
+                }
+            ]
+        }
+
+    collection.find_one_and_update = AsyncMock(side_effect=_echo)
     collection.update_one = AsyncMock(return_value=MagicMock(matched_count=1))
     return patch.object(User, "get_motor_collection", return_value=collection), collection
 
@@ -83,8 +104,8 @@ async def test_log_study_session_linked_to_goal_adds_flat_one_progress():
          goal_patch:
         await study_service.log_study_session(USER_ID, payload)
 
-    collection.update_one.assert_awaited_once()
-    _, update_arg = collection.update_one.call_args.args
+    collection.find_one_and_update.assert_awaited_once()
+    _, update_arg = collection.find_one_and_update.call_args.args
     assert update_arg["$inc"]["active_goals.$.current_value"].to_decimal() == Decimal("1")
 
 
@@ -97,7 +118,7 @@ async def test_log_study_session_without_goal_does_not_touch_goals():
          patch("services.study_service.activity_service.log_activity", new=AsyncMock()), \
          goal_patch:
         await study_service.log_study_session(USER_ID, payload)
-    collection.update_one.assert_not_awaited()
+    collection.find_one_and_update.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -157,11 +178,11 @@ async def test_update_session_relinking_goal_moves_the_flat_progress():
             USER_ID, SESSION_ID, StudyUpdateRequest(linked_goal_id=OTHER_GOAL_ID)
         )
 
-    assert collection.update_one.await_count == 2
-    first_filter, first_update = collection.update_one.await_args_list[0].args
+    assert collection.find_one_and_update.await_count == 2
+    first_filter, first_update = collection.find_one_and_update.await_args_list[0].args
     assert first_filter["active_goals.goal_id"] == GOAL_ID
     assert first_update["$inc"]["active_goals.$.current_value"].to_decimal() == Decimal("-1")
-    second_filter, second_update = collection.update_one.await_args_list[1].args
+    second_filter, second_update = collection.find_one_and_update.await_args_list[1].args
     assert second_filter["active_goals.goal_id"] == OTHER_GOAL_ID
     assert second_update["$inc"]["active_goals.$.current_value"].to_decimal() == Decimal("1")
 
@@ -188,7 +209,7 @@ async def test_update_session_editing_hours_without_changing_goal_link_leaves_pr
         await study_service.update_session(
             USER_ID, SESSION_ID, StudyUpdateRequest(study_hours=Decimal("4.0"))
         )
-    collection.update_one.assert_not_awaited()
+    collection.find_one_and_update.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -280,8 +301,8 @@ async def test_delete_session_reverses_linked_goal_progress():
          goal_patch:
         await study_service.delete_session(USER_ID, SESSION_ID)
 
-    collection.update_one.assert_awaited_once()
-    _, update_arg = collection.update_one.call_args.args
+    collection.find_one_and_update.assert_awaited_once()
+    _, update_arg = collection.find_one_and_update.call_args.args
     assert update_arg["$inc"]["active_goals.$.current_value"].to_decimal() == Decimal("-1")
 
 

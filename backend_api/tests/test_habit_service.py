@@ -8,6 +8,7 @@ the new unique (user_id, log_date) index backs, so it gets the most attention he
 """
 from datetime import datetime, timezone
 from decimal import Decimal
+from bson.decimal128 import Decimal128
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -31,7 +32,30 @@ def _patch_document_init():
 
 
 def _patch_goal_update():
+    """Mocks the goal-progress write path.
+
+    adjust_active_goal_progress now does the $inc via find_one_and_update (it needs
+    the post-increment value to re-derive status), then issues a second update_one
+    only when the status actually changed. The echoed goal below stays well short of
+    its target, so status is unchanged and no second write fires — keeping these
+    tests focused on progress movement.
+    """
     collection = MagicMock()
+
+    async def _echo(query, update, **kwargs):
+        return {
+            "active_goals": [
+                {
+                    "goal_id": query.get("active_goals.goal_id"),
+                    "current_value": Decimal128("1"),
+                    "target_value": Decimal128("100"),
+                    "status": "ACTIVE",
+                    "completed_at": None,
+                }
+            ]
+        }
+
+    collection.find_one_and_update = AsyncMock(side_effect=_echo)
     collection.update_one = AsyncMock(return_value=MagicMock(matched_count=1))
     return patch.object(User, "get_motor_collection", return_value=collection), collection
 
@@ -140,8 +164,8 @@ async def test_upsert_daily_log_first_time_linked_to_goal_adds_flat_one_progress
          goal_patch:
         await habit_service.upsert_daily_log(USER_ID, payload)
 
-    goal_collection.update_one.assert_awaited_once()
-    _, update_arg = goal_collection.update_one.call_args.args
+    goal_collection.find_one_and_update.assert_awaited_once()
+    _, update_arg = goal_collection.find_one_and_update.call_args.args
     assert update_arg["$inc"]["active_goals.$.current_value"].to_decimal() == Decimal("1")
 
 
@@ -167,11 +191,11 @@ async def test_upsert_daily_log_relinking_on_same_day_relog_moves_progress():
          goal_patch:
         await habit_service.upsert_daily_log(USER_ID, payload)
 
-    assert goal_collection.update_one.await_count == 2
-    first_filter, first_update = goal_collection.update_one.await_args_list[0].args
+    assert goal_collection.find_one_and_update.await_count == 2
+    first_filter, first_update = goal_collection.find_one_and_update.await_args_list[0].args
     assert first_filter["active_goals.goal_id"] == GOAL_ID
     assert first_update["$inc"]["active_goals.$.current_value"].to_decimal() == Decimal("-1")
-    second_filter, second_update = goal_collection.update_one.await_args_list[1].args
+    second_filter, second_update = goal_collection.find_one_and_update.await_args_list[1].args
     assert second_filter["active_goals.goal_id"] == OTHER_GOAL_ID
     assert second_update["$inc"]["active_goals.$.current_value"].to_decimal() == Decimal("1")
 
@@ -194,7 +218,7 @@ async def test_upsert_daily_log_relog_same_goal_link_leaves_progress_alone():
          goal_patch:
         await habit_service.upsert_daily_log(USER_ID, payload)
 
-    goal_collection.update_one.assert_not_awaited()
+    goal_collection.find_one_and_update.assert_not_awaited()
 
 
 # ─── delete_daily_log ─────────────────────────────────────────────────────────────
@@ -231,8 +255,8 @@ async def test_delete_daily_log_reverses_linked_goal_progress():
          goal_patch:
         await habit_service.delete_daily_log(USER_ID, LOG_ID)
 
-    goal_collection.update_one.assert_awaited_once()
-    _, update_arg = goal_collection.update_one.call_args.args
+    goal_collection.find_one_and_update.assert_awaited_once()
+    _, update_arg = goal_collection.find_one_and_update.call_args.args
     assert update_arg["$inc"]["active_goals.$.current_value"].to_decimal() == Decimal("-1")
 
 

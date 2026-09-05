@@ -7,6 +7,7 @@ mocks, mirroring the style of tests/test_forecast_service.py.
 """
 from datetime import datetime, timezone
 from decimal import Decimal
+from bson.decimal128 import Decimal128
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -46,6 +47,20 @@ def _patch_goal_update():
     the exact update_one(...) call it received."""
     collection = MagicMock()
     collection.update_one = AsyncMock(return_value=MagicMock(matched_count=1))
+    async def _echo(query, update, **kwargs):
+        return {
+            "active_goals": [
+                {
+                    "goal_id": query.get("active_goals.goal_id"),
+                    "current_value": Decimal128("1"),
+                    "target_value": Decimal128("100"),
+                    "status": "ACTIVE",
+                    "completed_at": None,
+                }
+            ]
+        }
+
+    collection.find_one_and_update = AsyncMock(side_effect=_echo)
     return patch.object(User, "get_motor_collection", return_value=collection), collection
 
 
@@ -94,8 +109,8 @@ async def test_create_transaction_savings_deposit_increments_linked_goal():
          goal_patch:
         await finance_service.create_transaction(USER_ID, payload)
 
-    collection.update_one.assert_awaited_once()
-    filter_arg, update_arg = collection.update_one.call_args.args
+    collection.find_one_and_update.assert_awaited_once()
+    filter_arg, update_arg = collection.find_one_and_update.call_args.args
     assert filter_arg == {"_id": PydanticObjectId(USER_ID), "active_goals.goal_id": GOAL_ID}
     assert update_arg["$inc"]["active_goals.$.current_value"].to_decimal() == Decimal("500")
 
@@ -116,7 +131,7 @@ async def test_create_transaction_expense_does_not_touch_linked_goal():
          goal_patch:
         await finance_service.create_transaction(USER_ID, payload)
 
-    collection.update_one.assert_not_awaited()
+    collection.find_one_and_update.assert_not_awaited()
 
 
 # ─── update_transaction ─────────────────────────────────────────────────────────
@@ -162,8 +177,8 @@ async def test_update_transaction_reconciles_linked_goal_amount_change():
             USER_ID, TXN_ID, FinanceUpdateRequest(amount=Decimal("500"))
         )
 
-    collection.update_one.assert_awaited_once()
-    _, update_arg = collection.update_one.call_args.args
+    collection.find_one_and_update.assert_awaited_once()
+    _, update_arg = collection.find_one_and_update.call_args.args
     assert update_arg["$inc"]["active_goals.$.current_value"].to_decimal() == Decimal("200")  # 500 - 300
 
 
@@ -215,8 +230,8 @@ async def test_delete_transaction_reverses_linked_goal_progress():
          goal_patch:
         await finance_service.delete_transaction(USER_ID, TXN_ID)
 
-    collection.update_one.assert_awaited_once()
-    _, update_arg = collection.update_one.call_args.args
+    collection.find_one_and_update.assert_awaited_once()
+    _, update_arg = collection.find_one_and_update.call_args.args
     assert update_arg["$inc"]["active_goals.$.current_value"].to_decimal() == Decimal("-300")
 
 

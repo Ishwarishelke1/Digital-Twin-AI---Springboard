@@ -29,6 +29,7 @@ from schemas.auth_schema import RegisterRequest, ChangePasswordRequest
 from schemas.user_schema import ProfileUpdateRequest, ActiveGoalCreateRequest, ActiveGoalUpdateRequest, PreferencesUpdateRequest
 import services.activity_service as activity_service
 import services.finance_service as finance_service
+import services.goal_progress_service as goal_progress_service
 from services.forecast_service import forecast_service
 from services.productivity_service import productivity_service
 from services.habit_analytics_service import habit_analytics_service
@@ -307,11 +308,17 @@ async def update_active_goal(user: User, goal_id: str, payload: ActiveGoalUpdate
     # whichever of the two this payload touches merged with the goal's existing values —
     # covers editing current_value alone (progress update), target_value alone (re-target
     # after completion reopens it), or both at once.
+    #
+    # Shared with goal_progress_service so the manual-edit path and the linked-record
+    # ($inc) path derive status identically — they diverged before, and only this one
+    # recomputed it, so goals completed via a linked transaction never left ACTIVE.
     merged_current = update_data.get("current_value", goal.current_value)
     merged_target = update_data.get("target_value", goal.target_value)
-    set_fields["active_goals.$.status"] = (
-        GoalStatus.COMPLETED.value if merged_current >= merged_target else GoalStatus.ACTIVE.value
-    )
+    new_status = goal_progress_service.derive_status(merged_current, merged_target)
+    for key, value in goal_progress_service.completion_fields(
+        new_status, goal.status, goal.completed_at
+    ).items():
+        set_fields[f"active_goals.$.{key}"] = value
 
     collection = User.get_motor_collection()
     result = await collection.update_one(
