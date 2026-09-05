@@ -67,3 +67,19 @@ export const deleteUser = async () => {
   const response = await api.delete("/users/me");
   return response.data;
 };
+/**
+ * Completion probability for each active goal.
+ * GET /api/v1/users/me/goals/predictions
+ *
+ * A null `probability` with a populated `reason` is expected, not an error: the
+ * model refuses on goals with too little history, or whose inputs fall outside
+ * what it was trained on, rather than inventing a figure. Entries also carry
+ * `trained_on` — currently "synthetic" — which the UI surfaces so the number is
+ * never read as more grounded than it is.
+ *
+ * @returns {Promise<Array<{goal_id, probability, reason, trained_on, model_ece}>>}
+ */
+export const getGoalPredictions = async () => {
+  const response = await api.get("/users/me/goals/predictions");
+  return response.data;
+};
