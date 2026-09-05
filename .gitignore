@@ -5,3 +5,9 @@
 !.env.example
 
 .DS_Store
+
+# Database dumps from scripts/backup_restore_drill.py. These contain real user
+# data — never commit them, and store them off the cluster they back up.
+backups/
+backend_api/backups/
+*.bson
