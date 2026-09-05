@@ -51,41 +51,64 @@ def main() -> None:
     db = client[db_name]
     print(f"database: {db_name}\n")
 
-    fixes = []
+    # (collection, mongo field path, human label)
+    LINKED_GOAL_COLLECTIONS = [
+        ("financial_records", "linked_goal_id"),
+        ("study_activities", "linked_goal_id"),
+        ("habit_trackings", "linked_goal_id"),
+    ]
+
+    fixes: list[tuple] = []
+
+    # users.active_goals[].goal_id
     for user in db.users.find({}, {"email": 1, "active_goals": 1}):
         for index, goal in enumerate(user.get("active_goals") or []):
             gid = goal.get("goal_id")
-            if not isinstance(gid, str):
-                fixes.append((user["_id"], user.get("email"), index, gid, str(gid), goal.get("title")))
+            if gid is not None and not isinstance(gid, str):
+                fixes.append(
+                    ("users", user["_id"], f"active_goals.{index}.goal_id", gid,
+                     f"{user.get('email')} — goal {goal.get('title')!r}")
+                )
+
+    # <records>.linked_goal_id — same legacy shape, and it breaks the same way:
+    # Beanie cannot parse the document, so every query touching it 500s.
+    for coll, field in LINKED_GOAL_COLLECTIONS:
+        for doc in db[coll].find({}, {field: 1}):
+            value = doc.get(field)
+            if value is not None and not isinstance(value, str):
+                fixes.append((coll, doc["_id"], field, value, f"{coll} record"))
 
     if not fixes:
-        print("No malformed goal_id values found — nothing to do.")
+        print("No non-string id values found — nothing to do.")
         return
 
-    print(f"{len(fixes)} goal(s) with a non-string goal_id:\n")
-    for _, email, index, old, new, title in fixes:
-        print(f"  {email}")
-        print(f"    active_goals[{index}]  {title!r}")
-        print(f"    {type(old).__name__}({old})  →  str({new!r})\n")
+    print(f"{len(fixes)} field(s) to repair:\n")
+    for coll, _id, path, old, label in fixes:
+        print(f"  {coll}.{path}")
+        print(f"    {label}")
+        print(f"    _id={_id}")
+        print(f"    {type(old).__name__}({old})  →  str({str(old)!r})\n")
 
     if not args.apply:
         print("DRY RUN — nothing written. Re-run with --apply to fix.")
         return
 
-    for user_id, email, index, _old, new, _title in fixes:
-        result = db.users.update_one(
-            {"_id": user_id},
-            {"$set": {f"active_goals.{index}.goal_id": new}},
-        )
-        print(f"  ✓ {email}: matched={result.matched_count} modified={result.modified_count}")
+    for coll, _id, path, old, label in fixes:
+        result = db[coll].update_one({"_id": _id}, {"$set": {path: str(old)}})
+        print(f"  ✓ {coll}.{path}: matched={result.matched_count} modified={result.modified_count}")
 
     remaining = sum(
         1
         for u in db.users.find({}, {"active_goals": 1})
         for g in (u.get("active_goals") or [])
-        if not isinstance(g.get("goal_id"), str)
+        if g.get("goal_id") is not None and not isinstance(g.get("goal_id"), str)
+    ) + sum(
+        1
+        for coll, field in LINKED_GOAL_COLLECTIONS
+        for d in db[coll].find({}, {field: 1})
+        if d.get(field) is not None and not isinstance(d.get(field), str)
     )
-    print(f"\n✓ Done. Remaining malformed goal_ids: {remaining}")
+    print(f"\n✓ Done. Remaining non-string ids: {remaining}")
 
 
 if __name__ == "__main__":

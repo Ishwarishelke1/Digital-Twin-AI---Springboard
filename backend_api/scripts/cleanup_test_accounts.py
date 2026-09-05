@@ -97,9 +97,55 @@ def is_test_account(email: str) -> bool:
     return any(p.match(email) for p in _COMPILED)
 
 
+async def _handle_orphans(*, apply: bool) -> None:
+    """Finds records whose user_id points at a user that no longer exists.
+
+    delete_user() cascades correctly, so orphans do not come from this script —
+    they come from deletions that bypassed it (a test teardown doing a raw
+    users.delete_many(), or a manual delete in the Atlas UI). They are inert,
+    since every service query filters by user_id, but they inflate collection
+    counts and would skew any analytics or model training that reads a
+    collection wholesale.
+    """
+    user_ids = {u.id for u in await User.find_all().to_list()}
+    print(f"{len(user_ids)} live users\n")
+
+    found: list[tuple[str, object, object]] = []
+    for label, model in RELATED:
+        docs = await model.find_all().to_list()
+        orphans = [d for d in docs if d.user_id not in user_ids]
+        mark = "✓" if not orphans else "✗"
+        print(f"  {mark} {label:<22} {len(docs):>5} total, {len(orphans):>4} orphaned")
+        found.extend((label, model, d) for d in orphans)
+
+    if not found:
+        print("\n✓ No orphaned records.")
+        return
+
+    print(f"\n{len(found)} orphaned record(s):")
+    by_user: dict[object, int] = {}
+    for label, _model, d in found:
+        by_user[d.user_id] = by_user.get(d.user_id, 0) + 1
+        print(f"  {label:<22} _id={d.id}  user_id={d.user_id}  created={getattr(d, 'created_at', None)}")
+    print(f"\n  belonging to {len(by_user)} deleted user(s): {', '.join(str(u) for u in by_user)}")
+
+    if not apply:
+        print("\nDRY RUN — nothing deleted. Re-run with --orphans --apply to remove.")
+        return
+
+    for _label, _model, d in found:
+        await d.delete()
+    print(f"\n✓ Deleted {len(found)} orphaned record(s).")
+
+
 async def main() -> None:
     parser = argparse.ArgumentParser(description="Delete accumulated test accounts.")
     parser.add_argument("--apply", action="store_true", help="actually delete (default: dry run)")
+    parser.add_argument(
+        "--orphans",
+        action="store_true",
+        help="report (and with --apply, delete) records whose user no longer exists",
+    )
     args = parser.parse_args()
 
     if args.apply:
@@ -107,6 +153,10 @@ async def main() -> None:
 
     await connect_to_mongo()
     try:
+        if args.orphans:
+            await _handle_orphans(apply=args.apply)
+            return
+
         users = await User.find_all().to_list()
         targets = [u for u in users if is_test_account(u.email)]
         kept = [u for u in users if not is_test_account(u.email)]
