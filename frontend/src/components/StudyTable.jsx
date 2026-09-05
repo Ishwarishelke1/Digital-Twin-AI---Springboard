@@ -18,7 +18,7 @@ function SortButton({ label, active, dir, onClick }) {
       className="inline-flex items-center gap-1 font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
     >
       {label}
-      <Icon size={13} className={active ? "text-indigo-600" : "text-slate-300 dark:text-slate-600"} />
+      <Icon size={13} className={active ? "text-indigo-600 dark:text-indigo-400" : "text-slate-300 dark:text-slate-600"} />
     </button>
   );
 }
@@ -131,7 +131,7 @@ function StudyTable({ sessions, onEdit, onDelete }) {
                     <div className="flex gap-1">
                       <button
                         onClick={() => onEdit && onEdit(item)}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-indigo-600 dark:hover:bg-white/10"
+                        className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 dark:hover:bg-white/10"
                         aria-label="Edit"
                       >
                         <Edit size={16} />

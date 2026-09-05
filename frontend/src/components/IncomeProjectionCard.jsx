@@ -14,17 +14,17 @@ function IncomeProjectionCard({ projection, currency = "USD" }) {
 
   return (
     <div className="rounded-2xl border-t-4 border-t-violet-500 bg-white dark:bg-slate-800 p-6 shadow-sm">
-      <h3 className="mb-5 text-lg font-semibold text-violet-600">✦ Projected Income</h3>
+      <h3 className="mb-5 text-lg font-semibold text-violet-600 dark:text-violet-400">✦ Projected Income</h3>
       <ul className="flex flex-col gap-2.5">
         {projection.projections.map((p) => (
           <li key={`${p.year}-${p.month}`} className="flex justify-between border-b border-slate-100 dark:border-slate-700 py-2.5 text-sm">
             <span className="font-mono tabular-nums text-slate-600 dark:text-slate-400">{MONTH_NAMES[p.month - 1]} {p.year}</span>
-            <strong className="font-mono tabular-nums text-violet-600">{formatCurrency(p.projected_amount, currency)}</strong>
+            <strong className="font-mono tabular-nums text-violet-600 dark:text-violet-400">{formatCurrency(p.projected_amount, currency)}</strong>
           </li>
         ))}
       </ul>
       <p className="mt-4 text-xs text-slate-400">
-        Confidence: {Math.round(projection.confidence_score * 100)}% · method: {projection.method_used}
+        Data sufficiency: {Math.round(projection.confidence_score * 100)}% · method: {projection.method_used}
       </p>
     </div>
   );

@@ -21,10 +21,10 @@ export function StatTile({ label, value, accent = "neutral", predicted = false, 
   const tone = predicted ? "predicted" : accent;
   return (
     <div className={`rounded-2xl border-t-4 bg-white p-5 shadow-sm dark:bg-slate-800 ${ACCENTS[tone]}`}>
-      <h4 className={`text-sm font-medium ${predicted ? "text-violet-600" : "text-slate-500 dark:text-slate-400"}`}>
+      <h4 className={`text-sm font-medium ${predicted ? "text-violet-600 dark:text-violet-400" : "text-slate-500 dark:text-slate-400"}`}>
         {predicted ? "✦ " : ""}{label}
       </h4>
-      <p className={`mt-2.5 font-mono text-2xl font-semibold tabular-nums ${predicted ? "text-violet-600" : "text-slate-800 dark:text-slate-100"}`}>{value}</p>
+      <p className={`mt-2.5 font-mono text-2xl font-semibold tabular-nums ${predicted ? "text-violet-600 dark:text-violet-400" : "text-slate-800 dark:text-slate-100"}`}>{value}</p>
       {sublabel && <p className="mt-1 text-xs text-slate-400">{sublabel}</p>}
     </div>
   );

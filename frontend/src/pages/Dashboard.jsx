@@ -299,13 +299,13 @@ function Dashboard() {
           <div className="mb-8 grid grid-cols-1 gap-5 lg:grid-cols-3">
 
             <Card className="border-t-4 border-t-violet-500 lg:col-span-2">
-              <h3 className="text-lg font-semibold text-violet-600">✦ AI Recommendation</h3>
+              <h3 className="text-lg font-semibold text-violet-600 dark:text-violet-400">✦ AI Recommendation</h3>
 
               <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
                 {trend
                   ? `Predicted savings next month: $${Math.round(
                       trend.savings?.projected_savings?.[0]?.value ?? 0
-                    ).toLocaleString()} (confidence ${Math.round((trend.savings?.confidence_score ?? 0) * 100)}%).`
+                    ).toLocaleString()} (data sufficiency ${Math.round((trend.savings?.confidence_score ?? 0) * 100)}%).`
                   : "Log a few transactions on the Finance page to get a personalized savings prediction."}
               </p>
 
@@ -313,7 +313,7 @@ function Dashboard() {
                 {trend
                   ? `Predicted study score next week: ${Math.round(
                       trend.study?.projected_productivity?.[0]?.value ?? 0
-                    )}% (confidence ${Math.round((trend.study?.productivity_confidence_score ?? 0) * 100)}%).`
+                    )}% (data sufficiency ${Math.round((trend.study?.productivity_confidence_score ?? 0) * 100)}%).`
                   : "Log a few study sessions to get a personalized study prediction."}
               </p>
             </Card>
@@ -329,7 +329,7 @@ function Dashboard() {
                   >
                     + Add Goal
                   </Button>
-                  <Link to="/goals" className="text-sm font-medium text-indigo-600 hover:underline">View all</Link>
+                  <Link to="/goals" className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline">View all</Link>
                 </div>
               </div>
 
@@ -370,7 +370,7 @@ function Dashboard() {
 
             <div className="mb-5 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Recent Activity</h3>
-              <Link to="/activity" className="text-sm font-medium text-indigo-600 hover:underline">View all</Link>
+              <Link to="/activity" className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline">View all</Link>
             </div>
 
             {recentActivity.length === 0 ? (

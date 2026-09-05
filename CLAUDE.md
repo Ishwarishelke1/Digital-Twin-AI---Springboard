@@ -2,6 +2,8 @@
 
 Guidance for working in this repo. See `README.md` for the full project description and setup instructions — this file covers conventions and non-obvious behavior an agent (or a new contributor) needs to know before making changes. For UI/UX-specific work, see `SKILLS.md`, which documents the design-review workflow (audit → visualize → plan → implement) this project's frontend changes go through.
 
+For the forward-looking architecture roadmap — event sourcing, the ML models, the causal/simulation layers — see `IMPLEMENTATION_PLAN.md`. **That file describes work that has not been done yet**, so read it as a plan, never as a description of how the system currently behaves; this file (`CLAUDE.md`) is the authority on current behavior. Where the two disagree, the code and `CLAUDE.md` win.
+
 ## Stack
 
 - **Backend** (`backend_api/`): FastAPI + MongoDB Atlas via async Motor + Beanie ODM, JWT auth.

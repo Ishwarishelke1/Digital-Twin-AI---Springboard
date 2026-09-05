@@ -31,7 +31,9 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     async function restoreSession() {
       try {
-        const userData = await getUser();
+        // isSessionProbe: a 401 here means "not logged in", which is a valid
+        // answer on a public route — it must not trigger api.js's redirect.
+        const userData = await getUser({ isSessionProbe: true });
         setUser(userData);
       } catch {
         // No valid session cookie — stay logged out.

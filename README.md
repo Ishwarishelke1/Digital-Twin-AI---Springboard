@@ -4,6 +4,19 @@ A full-stack personal life dashboard that tracks finance, study, and daily habit
 
 ---
 
+## Documentation
+
+| File | Covers | Describes |
+| :--- | :--- | :--- |
+| `README.md` | Project overview, setup, features | Current state |
+| `CLAUDE.md` | Code conventions and non-obvious behavior | Current state |
+| `SKILLS.md` | The design-review workflow frontend changes go through | Current state |
+| `IMPLEMENTATION_PLAN.md` | Architecture roadmap — event sourcing, ML models, causal reasoning, simulation, decision engine | **Planned, not built** |
+
+`IMPLEMENTATION_PLAN.md` is a forward-looking plan derived from an engineering design review. Nothing in it has been implemented yet — treat the other three files and the code itself as the authority on how the system behaves today.
+
+---
+
 ## Repository Structure
 
 ```text

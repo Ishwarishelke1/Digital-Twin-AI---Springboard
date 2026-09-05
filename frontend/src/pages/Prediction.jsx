@@ -143,13 +143,13 @@ function Prediction() {
     ? [
         `Predicted savings next month: $${Math.round(
           trend.savings?.projected_savings?.[0]?.value ?? 0
-        ).toLocaleString()} (confidence ${Math.round((trend.savings?.confidence_score ?? 0) * 100)}%)`,
+        ).toLocaleString()} (data sufficiency ${Math.round((trend.savings?.confidence_score ?? 0) * 100)}%)`,
         `Predicted study score next week: ${Math.round(
           clampPct(trend.study?.projected_productivity?.[0]?.value ?? 0)
-        )}% (confidence ${Math.round((trend.study?.productivity_confidence_score ?? 0) * 100)}%)`,
+        )}% (data sufficiency ${Math.round((trend.study?.productivity_confidence_score ?? 0) * 100)}%)`,
         `Predicted fitness score next week: ${Math.round(
           clampPct(trend.fitness?.projected_fitness_score?.[0]?.value ?? 0)
-        )}% (confidence ${Math.round((trend.fitness?.confidence_score ?? 0) * 100)}%)`,
+        )}% (data sufficiency ${Math.round((trend.fitness?.confidence_score ?? 0) * 100)}%)`,
         ...(trend.study?.predicted_exam_score != null
           ? [`Predicted exam score: ${Math.round(clampPct(trend.study.predicted_exam_score))}%`]
           : []),
@@ -174,7 +174,7 @@ function Prediction() {
             onClick={() => setActiveTab(tab.id)}
             className={`-mb-px border-b-2 px-1 py-2.5 text-sm font-semibold ${
               activeTab === tab.id
-                ? "border-indigo-600 text-indigo-600"
+                ? "border-indigo-600 text-indigo-600 dark:text-indigo-400"
                 : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
             }`}
           >

@@ -29,27 +29,68 @@
   --color-slate-800: #292524; /* ink — primary text / dark-mode card surface, 15.2:1 on paper */
   --color-slate-900: #1C1917; /* Sidebar + dark-mode base */
 
+  /* Every shade the app actually uses must be defined here. Tailwind has no
+     "undefined shade" error — an undefined rung silently falls through to
+     Tailwind's own stock color, which is cool-toned and clashes with this warm
+     palette. That is a real bug this codebase shipped with: focus:ring-indigo-500
+     on every input, border-red-500 on every form error, and the StatTile accent
+     bars were all rendering in stock Tailwind, not Studio. The 50/200/300/400/500
+     and 800/900/950 rungs below exist for that reason — see the guard script in
+     REMEDIATION_PLAN.md that fails the build if a used shade is undefined. */
+  --color-indigo-50:  #F2F8F7; /* soft tint background */
   --color-indigo-100: #E4F1EF; /* action accent, soft tint (Badge "info", active nav fill) */
+  --color-indigo-200: #BEDBD8;
+  --color-indigo-300: #97C5C1; /* dark-mode accent text — 8.0:1 on dark card */
+  --color-indigo-400: #68AAA4; /* dark-mode accent text — 5.7:1 on dark card */
+  --color-indigo-500: #3E918A; /* focus ring / border — 3.7:1 on white, 4.1:1 on dark card */
   --color-indigo-600: #0F766E; /* action accent — teal, 5.2:1 on paper */
   --color-indigo-700: #0B5852; /* action accent — hover */
+  --color-indigo-800: #08423E;
+  --color-indigo-900: #06302D;
+  --color-indigo-950: #041F1D; /* dark-mode tint background */
 
   --color-violet-100: #F0E6EE;
   --color-violet-300: #C9A8C4;
+  --color-violet-400: #B387B0; /* dark-mode predicted text — 5.1:1 on dark card */
   --color-violet-500: #8B4B8A; /* the one accent reserved for AI-predicted content, 6.05:1 on white */
   --color-violet-600: #733B73;
   --color-violet-700: #5A2E5C;
 
+  --color-emerald-50:  #F3FAF6;
   --color-emerald-100: #E7F5EC;
+  --color-emerald-200: #C1E0CC;
+  --color-emerald-300: #9BCBAD; /* dark-mode positive text — 8.3:1 on dark card */
+  --color-emerald-400: #6DB186; /* dark-mode positive text — 6.0:1 on dark card */
+  --color-emerald-500: #439A64; /* accent bar / border */
   --color-emerald-600: #15803D;
   --color-emerald-700: #116830;
+  --color-emerald-800: #0D4E24;
+  --color-emerald-900: #09391A;
+  --color-emerald-950: #062411;
 
+  --color-amber-50:  #FDF6F0;
   --color-amber-100: #FBEEE0;
+  --color-amber-200: #EED2B9;
+  --color-amber-300: #E1B693; /* dark-mode warning text — 8.2:1 on dark card */
+  --color-amber-400: #D29463;
+  --color-amber-500: #C47538; /* accent bar / border */
   --color-amber-600: #B45309;
   --color-amber-700: #8F4207;
+  --color-amber-800: #6B3205;
+  --color-amber-900: #4F2404;
+  --color-amber-950: #321702;
 
+  --color-red-50:  #FDF4F6;
   --color-red-100: #FBE9EE;
+  --color-red-200: #F0C2CE;
+  --color-red-300: #E59CAE; /* dark-mode danger text — 7.0:1 on dark card */
+  --color-red-400: #D86C87;
+  --color-red-500: #CB4163; /* error border / focus ring — 4.7:1 on white */
   --color-red-600: #BE123C;
   --color-red-700: #9A0F31;
+  --color-red-800: #740B25;
+  --color-red-900: #55081B;
+  --color-red-950: #360511;
 
   /* Three-tier radius: controls, cards, modals — the Studio spec's signature
      soft-but-defined surface language, replacing the previous uniform

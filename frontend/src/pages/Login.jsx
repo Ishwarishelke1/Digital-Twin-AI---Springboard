@@ -109,7 +109,7 @@ function Login() {
         <div className="w-full max-w-sm">
 
           <div className="mb-6">
-            <p className="text-sm font-semibold uppercase tracking-wide text-indigo-600">
+            <p className="text-sm font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
               Digital Twin AI
             </p>
 
@@ -182,7 +182,7 @@ function Login() {
                 type="checkbox"
                 checked={rememberMe}
                 onChange={handleRememberMeChange}
-                className="h-4 w-4 cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                className="h-4 w-4 cursor-pointer rounded border-slate-300 text-indigo-600 dark:text-indigo-400 focus:ring-indigo-500"
               />
 
               Remember Me
@@ -190,7 +190,7 @@ function Login() {
 
             <Link
               to="/forgot-password"
-              className="font-medium text-indigo-600 hover:underline"
+              className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
             >
               Forgot Password?
             </Link>
@@ -213,7 +213,7 @@ function Login() {
 
           <Link
             to="/signup"
-            className="font-semibold text-indigo-600 hover:underline"
+            className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
           >
             Sign Up
           </Link>

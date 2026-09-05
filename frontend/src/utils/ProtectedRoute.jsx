@@ -10,8 +10,19 @@ import { useAuth } from "../context/useAuth";
 function ProtectedRoute({ children }) {
   const { user, isLoading } = useAuth();
 
+  // Themed full-page hold while the session is validated. An unstyled <h2> here
+  // flashes raw text on the browser's default background before the app shell
+  // paints, on every single load.
   if (isLoading) {
-    return <h2>Loading...</h2>;
+    return (
+      <div
+        className="flex min-h-dvh items-center justify-center bg-slate-50 dark:bg-slate-900"
+        role="status"
+        aria-live="polite"
+      >
+        <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Loading…</span>
+      </div>
+    );
   }
 
   if (!user) {

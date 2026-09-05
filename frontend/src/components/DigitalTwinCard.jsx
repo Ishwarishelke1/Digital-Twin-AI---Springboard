@@ -40,7 +40,15 @@ function DigitalTwinCard({ twinState }) {
     metric("Productivity", twinState.productivity_score),
   ];
 
+  // Hidden while UNKNOWN. Nothing in the backend writes burnout_risk_cluster
+  // today (see api/v1/habits.py and user_service.py, which both say so), so this
+  // badge was permanently "Not enough data yet" — a visible metric that never
+  // changes erodes trust in the real numbers beside it. Kept as a conditional
+  // rather than deleted: the moment the field is populated the badge returns
+  // with no further change here. See REMEDIATION_PLAN.md §6 for why the planned
+  // clustering model was reconsidered rather than built.
   const burnout = twinState.burnout_risk_cluster ?? "UNKNOWN";
+  const showBurnout = burnout !== "UNKNOWN";
   const lastUpdated = twinState.last_updated_at
     ? new Date(twinState.last_updated_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
     : null;
@@ -52,10 +60,12 @@ function DigitalTwinCard({ twinState }) {
           <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Your Digital Twin</h3>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">A single snapshot of where every model has you right now.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400">Burnout risk</span>
-          <Badge tone={BURNOUT_TONE[burnout] ?? "neutral"}>{BURNOUT_LABEL[burnout] ?? burnout}</Badge>
-        </div>
+        {showBurnout && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400">Burnout risk</span>
+            <Badge tone={BURNOUT_TONE[burnout] ?? "neutral"}>{BURNOUT_LABEL[burnout] ?? burnout}</Badge>
+          </div>
+        )}
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-4">

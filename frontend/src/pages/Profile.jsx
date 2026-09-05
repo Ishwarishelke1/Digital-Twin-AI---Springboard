@@ -95,7 +95,7 @@ function Profile() {
                     : "No goals yet."}
                 </p>
               </div>
-              <Link to="/goals" className="text-sm font-medium text-indigo-600 hover:underline">
+              <Link to="/goals" className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
                 View Goals →
               </Link>
             </div>

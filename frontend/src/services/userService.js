@@ -8,10 +8,14 @@ import api from "./api";
 /**
  * Fetch the complete user context (profile + preferences + goals + digital_twin_state).
  * GET /api/v1/users/me
+ * @param {{ isSessionProbe?: boolean }} [options] - pass `isSessionProbe: true` from
+ *   AuthContext's mount-time "am I logged in?" check. A 401 there is a valid answer
+ *   ("no session"), not an expired-session event, so it must not trigger api.js's
+ *   redirect-to-login — otherwise every public route bounces to /login on load.
  * @returns {Promise<UserResponse>}
  */
-export const getUser = async () => {
-  const response = await api.get("/users/me");
+export const getUser = async ({ isSessionProbe = false } = {}) => {
+  const response = await api.get("/users/me", { skipAuthRedirect: isSessionProbe });
   return response.data;
 };
 
