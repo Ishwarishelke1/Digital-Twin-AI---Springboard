@@ -24,7 +24,9 @@ cd frontend && npm install && npm run dev     # http://localhost:5173
 cd frontend && npx eslint . && npx vite build # lint + build check
 ```
 
-`backend_api/.env` must exist with `MONGODB_URI`, `MONGODB_DB_NAME`, `JWT_SECRET_KEY` at minimum (app fails to start without a real `JWT_SECRET_KEY` — see `core/config.py`). There is currently **no separate test/staging database** — `MONGODB_URI` points at one live Atlas cluster. Be deliberate about what you write there (throwaway test accounts are fine; don't touch real user data).
+`backend_api/.env` must exist with `MONGODB_URI`, `MONGODB_DB_NAME`, `JWT_SECRET_KEY` at minimum (app fails to start without a real `JWT_SECRET_KEY` — see `core/config.py`). There is currently **no separate test/staging database** — `MONGODB_URI` points at one live Atlas cluster, and `MONGODB_DB_NAME` is `digital_twin_ai_prod`. Be deliberate about what you write there (throwaway test accounts are fine; don't touch real user data).
+
+- **Destructive scripts must call `require_non_production()`** from `core/db_guard.py` before touching the database. It refuses to run when `NODE_ENV=production` or the database name contains `prod`/`production`/`live`, and the override (`DESTRUCTIVE_WRITE_ALLOW_DB`) must name the exact database — a truthy value won't do, so a stale export can't satisfy it. `scripts/seed_zohaib.py` is wired up; wire up any new script that deletes or overwrites. This exists because that script opens by `delete_many()`-ing three collections against whatever `.env` points at, which today is production. See README's "Staging vs. production data" for the workflow.
 
 ## Backend conventions
 
