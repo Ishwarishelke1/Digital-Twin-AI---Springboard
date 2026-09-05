@@ -11,3 +11,7 @@
 backups/
 backend_api/backups/
 *.bson
+
+# Generated synthetic training data. Deterministic under --seed, so regenerate
+# rather than commit: python3 scripts/generate_synthetic_users.py
+backend_api/data/synthetic/
