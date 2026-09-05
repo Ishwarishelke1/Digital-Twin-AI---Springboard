@@ -79,23 +79,39 @@ def test_completion_after_the_deadline_is_not_a_success():
     assert gen.build_feature_row(goal, 40, 0.5, 1)["completed_by_deadline"] == 0
 
 
-# ─── the record/reality distinction ──────────────────────────────────────────
+# ─── the contribution IS the record ──────────────────────────────────────────
 
-def test_progress_accrues_even_when_not_logged():
-    """Contributions happen whether or not the user records them. An earlier
-    draft only accumulated logged days, which erased the informative-missingness
-    signal — the gap between what happened and what was written down."""
-    rng = random.Random(1)
-    goal = _goal(duration=60)
-    original = gen.BASE_LOG_PROBABILITY
-    try:
-        gen.BASE_LOG_PROBABILITY = -10.0  # nothing is ever logged
-        gen.simulate_goal(rng, goal, diligence=0.99, competing=0)
-    finally:
-        gen.BASE_LOG_PROBABILITY = original
+def test_completion_is_reachable_from_the_logged_record_alone():
+    """This application has no unrecorded progress: a goal's current_value only
+    moves when a linked transaction or session is logged, so the contribution and
+    the record are the same event.
 
-    assert goal.contributions == [], "nothing should have been logged"
-    assert goal.completed_day is not None, "progress must accrue despite zero logging"
+    An earlier draft modelled daily accrual with partial logging. That made the
+    training-time progress_ratio a fraction of true progress while the served
+    feature reflected all of it — a train/serve mismatch severe enough to invert
+    the predictions (a goal behind pace scored higher than one ahead of it).
+    """
+    rng = random.Random(3)
+    goal = _goal(duration=120, target=1000.0)
+    gen.simulate_goal(rng, goal, diligence=0.85, competing=0)
+
+    assert goal.contributions, "a diligent user should contribute at least once"
+    logged_total = sum(a for _, a in goal.contributions)
+    if goal.completed_day is not None:
+        assert logged_total >= goal.target_value, (
+            "completion must be reachable from the logged record alone — otherwise "
+            "training features see less progress than the serving path does"
+        )
+
+
+def test_sparse_contributors_log_fewer_events_than_diligent_ones():
+    """Cadence scales with diligence, so a sparse record still carries signal —
+    it means fewer contributions, not hidden ones."""
+    diligent = _goal(duration=120)
+    sparse = _goal(duration=120)
+    gen.simulate_goal(random.Random(5), diligent, diligence=0.95, competing=0)
+    gen.simulate_goal(random.Random(5), sparse, diligence=0.05, competing=0)
+    assert len(diligent.contributions) > len(sparse.contributions)
 
 
 # ─── determinism and balance ─────────────────────────────────────────────────

@@ -103,7 +103,9 @@ def main() -> None:
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    X = pd.get_dummies(df.drop(columns=DROP), columns=["category"], prefix="cat")
+    # dtype=float: get_dummies yields booleans by default, and .quantile() on a
+    # boolean column raises rather than returning 0/1.
+    X = pd.get_dummies(df.drop(columns=DROP), columns=["category"], prefix="cat", dtype=float)
     y = df[LABEL].to_numpy()
     groups = df["user_id"].to_numpy()
     feature_names = list(X.columns)
@@ -199,6 +201,43 @@ def main() -> None:
     fig.tight_layout()
     chart = out_dir / "evaluation.png"
     fig.savefig(chart, dpi=150)
+
+    # ── persist the model for serving ────────────────────────────────────────
+    # Logistic regression is shipped rather than the GBM: it scored higher on
+    # every metric here, and its calibration is materially better (ECE 0.026 vs
+    # 0.084), which is what matters for a number presented to a user as a
+    # probability. feature_names is stored alongside so the serving path can
+    # assert column order rather than silently mis-align.
+    import joblib
+
+    model_dir = Path("models_store")
+    model_dir.mkdir(parents=True, exist_ok=True)
+    # Feature ranges travel with the model so the serving path can detect inputs
+    # outside what it was trained on. A linear model extrapolates silently and
+    # confidently past its training range — a real goal with zero linked
+    # transactions (contribution_count = 0, below anything in this data) came back
+    # at 99.8%, which is meaningless rather than merely wrong. Percentiles rather
+    # than min/max so a single outlier row does not widen the accepted range.
+    train_df = X.iloc[train_idx]
+    feature_ranges = {
+        name: {
+            "min": float(train_df[name].quantile(0.01)),
+            "max": float(train_df[name].quantile(0.99)),
+        }
+        for name in feature_names
+    }
+
+    artifact = {
+        "model": logreg,
+        "feature_names": feature_names,
+        "feature_ranges": feature_ranges,
+        "trained_on": "synthetic",
+        "seed": args.seed,
+        "n_train_goals": int(len(y_tr)),
+        "metrics": next(r for r in results if r["model"] == "logistic regression"),
+    }
+    joblib.dump(artifact, model_dir / "goal_completion.joblib")
+    print(f"\nwrote {model_dir / 'goal_completion.joblib'}")
 
     (out_dir / "metrics.json").write_text(json.dumps({
         "n_goals": len(df), "n_users": int(df.user_id.nunique()),

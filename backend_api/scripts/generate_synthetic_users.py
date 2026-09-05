@@ -82,10 +82,20 @@ ADHERENCE_FLOOR = 0.55
 EFFORT_INTERCEPT = 0.80
 EFFORT_DILIGENCE_SLOPE = 1.00
 
-# Logging behaviour. Low-diligence users log less often, so gaps in the record
-# are themselves informative — missingness is NOT random, which the design doc
-# flags as the most common source of silent corruption in habit analytics.
-BASE_LOG_PROBABILITY = 0.55
+# Disruption — a stretch where progress largely stops. This is the main source of
+# irreducible uncertainty: it is invisible at the prediction snapshot when it has
+# not started yet, so no model can anticipate it. Without it the simulation is
+# more predictable than real life and the model becomes overconfident.
+DISRUPTION_PROBABILITY = 0.45
+DISRUPTION_LENGTH_DAYS = (10, 45)
+DISRUPTION_EFFORT_MULTIPLIER = 0.15
+
+# Contribution cadence — the fraction of days on which a contribution happens.
+# A savings deposit or study session is a discrete event, not a daily drip, so
+# most days carry none. More diligent users contribute more often, which keeps a
+# sparse record informative.
+CONTRIBUTION_CADENCE_BASE = 0.06
+CONTRIBUTION_CADENCE_SLOPE = 0.22
 
 GROUND_TRUTH = {
     "category_effort": CATEGORY_EFFORT,
@@ -95,7 +105,11 @@ GROUND_TRUTH = {
     "adherence_floor": ADHERENCE_FLOOR,
     "effort_intercept": EFFORT_INTERCEPT,
     "effort_diligence_slope": EFFORT_DILIGENCE_SLOPE,
-    "base_log_probability": BASE_LOG_PROBABILITY,
+    "contribution_cadence_base": CONTRIBUTION_CADENCE_BASE,
+    "contribution_cadence_slope": CONTRIBUTION_CADENCE_SLOPE,
+    "disruption_probability": DISRUPTION_PROBABILITY,
+    "disruption_length_days": DISRUPTION_LENGTH_DAYS,
+    "disruption_effort_multiplier": DISRUPTION_EFFORT_MULTIPLIER,
     "diligence_distribution": "Beta(2.4, 2.0), mean ≈ 0.55",
     "notes": (
         "Completion emerges from day-by-day contribution accumulation reaching the "
@@ -134,23 +148,46 @@ def simulate_goal(rng: random.Random, goal: Goal, diligence: float, competing: i
     competition = max(COMPETITION_FLOOR, 1.0 - COMPETITION_PENALTY * competing)
     category = CATEGORY_EFFORT[goal.category]
 
+    # Disruption: illness, exam weeks, a job change. Without this the process is
+    # far too predictable — daily noise averages out over months, so the early
+    # contribution rate almost determines the outcome and the model becomes
+    # near-certain (it was returning 100% on real goals). A disruption the
+    # snapshot cannot foresee is irreducible uncertainty, which is what real life
+    # has and what stops the model claiming more confidence than is warranted.
+    disruption_start, disruption_end = None, None
+    if rng.random() < DISRUPTION_PROBABILITY:
+        disruption_start = rng.randint(0, max(1, goal.duration_days - 1))
+        disruption_end = disruption_start + rng.randint(*DISRUPTION_LENGTH_DAYS)
+
+    # Contributions are discrete events, and the event IS the record — a goal's
+    # current_value only moves when a linked transaction or session is logged, so
+    # there is no such thing as unrecorded progress here. An earlier version
+    # modelled daily accrual with partial logging, which meant training
+    # progress_ratio reflected a fraction of true progress while the served
+    # feature reflected all of it: a severe train/serve mismatch that inverted the
+    # predictions. Cadence still varies with diligence, so a sparse record remains
+    # informative — it just means fewer contributions, not hidden ones.
+    cadence = CONTRIBUTION_CADENCE_BASE + CONTRIBUTION_CADENCE_SLOPE * diligence
+    expected_events = max(goal.duration_days * cadence, 1.0)
+    base_amount = goal.target_value / expected_events
+
     cumulative = 0.0
     for day in range(goal.duration_days):
+        disrupted = disruption_start is not None and disruption_start <= day < disruption_end
         # Adherence decays as a goal ages, but toward a floor rather than to zero —
         # enthusiasm fades, it does not usually vanish entirely.
         decay = ADHERENCE_FLOOR + (1.0 - ADHERENCE_FLOOR) * 0.5 ** (day / ADHERENCE_HALF_LIFE_DAYS)
         effort = (EFFORT_INTERCEPT + EFFORT_DILIGENCE_SLOPE * diligence) * competition * category * decay
-        # Day-to-day noise; occasionally a burst, occasionally nothing.
-        noise = rng.lognormvariate(0.0, 0.45)
-        contributed = required_daily * effort * noise
+        if disrupted:
+            effort *= DISRUPTION_EFFORT_MULTIPLIER
 
-        # Progress accrues whether or not the user records it. Logging affects the
-        # *observed record*, not reality — conflating the two would erase exactly
-        # the signal this generator is meant to contain, since the gap between what
-        # happened and what was written down is what makes missingness informative.
-        cumulative += contributed
-        if rng.random() < (BASE_LOG_PROBABILITY + 0.40 * diligence):
-            goal.contributions.append((day, round(contributed, 2)))
+        # Does a contribution happen today at all?
+        if rng.random() >= cadence * (DISRUPTION_EFFORT_MULTIPLIER if disrupted else 1.0):
+            continue
+
+        amount = base_amount * effort * rng.lognormvariate(0.0, 0.35)
+        goal.contributions.append((day, round(amount, 2)))
+        cumulative += amount
 
         if goal.completed_day is None and cumulative >= goal.target_value:
             goal.completed_day = day
