@@ -1,50 +1,41 @@
-import { Edit, Trash2, CheckCircle2, Sparkles } from "lucide-react";
+import { Edit, Trash2, CheckCircle2, CalendarDays } from "lucide-react";
 
-/** Likelihood of hitting the target by its deadline.
+/** Target date, with days remaining once the deadline is close enough to matter.
  *
- * Rendered in the "predicted" plum accent rather than the teal used for real
- * figures, because it is an estimate sitting next to measured values and should
- * not be mistaken for one. `prediction.probability` is null whenever the model
- * declines — too little history, or inputs outside its trained range — in which
- * case the reason is shown instead of a number. That refusal is the expected
- * path for new goals, not an error state.
- *
- * The response still carries `trained_on` (currently "synthetic"); it is no
- * longer surfaced here at the product owner's request. Worth stating somewhere
- * user-visible before this ships to anyone but the author, since the model has
- * not been validated against real behaviour.
+ * A goal past its deadline is called out in the danger colour: it is the one
+ * state a user needs to notice without reading, and it is otherwise invisible
+ * because an overdue goal still sits under "Active".
  */
-function CompletionLikelihood({ prediction }) {
-  if (!prediction) return null;
+function TargetDate({ targetDate, completed }) {
+  if (!targetDate) return null;
 
-  const { probability, reason } = prediction;
-  const pct = probability == null ? null : Math.round(probability * 100);
+  const due = new Date(targetDate);
+  if (Number.isNaN(due.getTime())) return null;
+
+  const daysLeft = Math.ceil((due - new Date()) / 86_400_000);
+  const overdue = !completed && daysLeft < 0;
+  const soon = !completed && daysLeft >= 0 && daysLeft <= 14;
+
+  let note = null;
+  if (overdue) note = `${Math.abs(daysLeft)} day${Math.abs(daysLeft) === 1 ? "" : "s"} overdue`;
+  else if (soon) note = daysLeft === 0 ? "due today" : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`;
 
   return (
-    <div className="mt-3.5 border-t border-slate-100 pt-3 dark:border-slate-700">
-      <div className="flex items-center justify-center gap-1.5">
-        <Sparkles size={12} strokeWidth={1.8} className="text-violet-600 dark:text-violet-400" />
-        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-          Likely to finish on time
-        </span>
-      </div>
-      {pct == null ? (
-        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{reason}</p>
-      ) : (
-        <>
-          <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-violet-600 dark:text-violet-400">
-            {pct}%
-          </p>
-          <p className="mt-0.5 text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
-            Estimate
-          </p>
-        </>
-      )}
+    <div className="mt-3.5 flex items-center justify-center gap-1.5 border-t border-slate-100 pt-3 dark:border-slate-700">
+      <CalendarDays
+        size={12}
+        strokeWidth={1.8}
+        className={overdue ? "text-red-600 dark:text-red-400" : "text-slate-400 dark:text-slate-500"}
+      />
+      <span className={`text-xs ${overdue ? "font-medium text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}>
+        {due.toLocaleDateString()}
+        {note && ` · ${note}`}
+      </span>
     </div>
   );
 }
 
-function GoalCard({ title, value, completed, prediction, onEdit, onDelete }) {
+function GoalCard({ title, value, completed, targetDate, onEdit, onDelete }) {
   return(
     <div className={`relative rounded-2xl bg-white dark:bg-slate-800 p-6 text-center shadow-sm ${completed ? "ring-1 ring-emerald-400/60" : ""}`}>
       <div className="absolute right-1.5 top-1.5 flex gap-0.5">
@@ -66,7 +57,7 @@ function GoalCard({ title, value, completed, prediction, onEdit, onDelete }) {
       )}
       <h3 className="mb-3.5 text-sm font-medium text-slate-500 dark:text-slate-400">{title}</h3>
       <h2 className="font-mono text-xl font-semibold tabular-nums text-indigo-600 dark:text-indigo-400">{value}</h2>
-      {!completed && <CompletionLikelihood prediction={prediction} />}
+      <TargetDate targetDate={targetDate} completed={completed} />
     </div>
   );
 }
