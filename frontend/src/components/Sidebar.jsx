@@ -234,7 +234,7 @@ function Sidebar({ expanded, onToggleExpanded, mobileOpen, onCloseMobile }) {
       aria-modal={mobileOpen ? "true" : undefined}
       aria-label="Main navigation"
       tabIndex={-1}
-      className={`fixed left-0 top-0 z-40 flex h-screen w-64 flex-col overflow-y-auto border-r border-slate-200 bg-white text-slate-800 transition-[width,transform] duration-200 ease-out focus:outline-none dark:border-r-0 dark:bg-slate-900 dark:text-white ${
+      className={`fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-slate-200 bg-white text-slate-800 transition-[width,transform] duration-200 ease-out focus:outline-none dark:border-r-0 dark:bg-slate-900 dark:text-white ${
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       } lg:translate-x-0 ${expanded ? "lg:w-64" : "lg:w-16"}`}
     >
@@ -258,7 +258,18 @@ function Sidebar({ expanded, onToggleExpanded, mobileOpen, onCloseMobile }) {
         </button>
       </div>
 
-      <nav className={`flex-1 px-2 py-6 ${expanded ? "" : "lg:px-2.5"}`} aria-label="Main">
+      {/* The scroll container lives here rather than on the <aside>. Setting
+          overflow-y on the aside made its computed overflow-x `auto` too, turning
+          it into a clipping context in both directions — which cropped the
+          profile menu to the rail's width when collapsed (a 192px menu inside a
+          64px rail showed only the first letter of each item). Scrolling the nav
+          instead also keeps the header and footer pinned. min-h-0 is required:
+          without it a flex item won't shrink below its content height, so the
+          overflow never triggers. */}
+      <nav
+        className={`min-h-0 flex-1 overflow-y-auto px-2 py-6 ${expanded ? "" : "lg:px-2.5"}`}
+        aria-label="Main"
+      >
         {menuGroups.map((group) => (
           <div key={group.label} className="mb-5">
             <p className={labelClasses(expanded, "mb-2 pl-3 text-[11px] font-bold tracking-wider text-slate-500 dark:text-slate-400")}>
