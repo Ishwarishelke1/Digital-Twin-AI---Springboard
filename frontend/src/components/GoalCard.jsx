@@ -8,11 +8,16 @@ import { Edit, Trash2, CheckCircle2, Sparkles } from "lucide-react";
  * declines — too little history, or inputs outside its trained range — in which
  * case the reason is shown instead of a number. That refusal is the expected
  * path for new goals, not an error state.
+ *
+ * The response still carries `trained_on` (currently "synthetic"); it is no
+ * longer surfaced here at the product owner's request. Worth stating somewhere
+ * user-visible before this ships to anyone but the author, since the model has
+ * not been validated against real behaviour.
  */
 function CompletionLikelihood({ prediction }) {
   if (!prediction) return null;
 
-  const { probability, reason, trained_on: trainedOn } = prediction;
+  const { probability, reason } = prediction;
   const pct = probability == null ? null : Math.round(probability * 100);
 
   return (
@@ -30,11 +35,9 @@ function CompletionLikelihood({ prediction }) {
           <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-violet-600 dark:text-violet-400">
             {pct}%
           </p>
-          {trainedOn === "synthetic" && (
-            <p className="mt-0.5 text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
-              Estimate · model trained on synthetic data
-            </p>
-          )}
+          <p className="mt-0.5 text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+            Estimate
+          </p>
         </>
       )}
     </div>
