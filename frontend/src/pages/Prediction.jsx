@@ -18,6 +18,8 @@ import { SkeletonStatGrid, SkeletonChart } from "../components/ui/Skeleton";
 import { getTrendSummary } from "../services/trendService";
 import { getProductivityScore, getWeeklyProductivityTrend } from "../services/productivityService";
 import { getConsistencyScore } from "../services/habitAnalyticsService";
+import { useAuth } from "../context/useAuth";
+import { formatCurrency } from "../utils/currency";
 
 // Lazy-loaded: pulls in the Plotly cartesian bundle, which is sizeable even
 // trimmed down — no reason to pay for it until the "Compare All" subtab
@@ -52,6 +54,8 @@ const WHAT_IF_SUBTABS = [
 ];
 
 function Prediction() {
+  const { user } = useAuth();
+  const currency = user?.preferences?.currency ?? "USD";
   const [activeTab, setActiveTab]         = useState("forecasts");
   const [whatIfSubtab, setWhatIfSubtab]   = useState("finance");
   const [trend, setTrend]                 = useState(null);
@@ -141,9 +145,9 @@ function Prediction() {
 
   const aiInsights = trend
     ? [
-        `Predicted savings next month: $${Math.round(
-          trend.savings?.projected_savings?.[0]?.value ?? 0
-        ).toLocaleString()} (data sufficiency ${Math.round((trend.savings?.confidence_score ?? 0) * 100)}%)`,
+        `Predicted savings next month: ${formatCurrency(
+          Math.round(trend.savings?.projected_savings?.[0]?.value ?? 0), currency
+        )} (data sufficiency ${Math.round((trend.savings?.confidence_score ?? 0) * 100)}%)`,
         `Predicted study score next week: ${Math.round(
           clampPct(trend.study?.projected_productivity?.[0]?.value ?? 0)
         )}% (data sufficiency ${Math.round((trend.study?.productivity_confidence_score ?? 0) * 100)}%)`,

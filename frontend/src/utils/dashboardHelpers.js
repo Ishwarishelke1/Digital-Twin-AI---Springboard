@@ -58,3 +58,33 @@ export function buildStudyChartData(sessions) {
     hours: Math.round(totals[day] * 10) / 10,
   }));
 }
+
+/**
+ * Appends forecast points to a savings series so one chart can show history and
+ * projection together.
+ *
+ * The two are kept in separate keys (`savings` vs `projected`) rather than one
+ * continuous series, so the chart can style them differently — a projection
+ * drawn identically to measured data would misrepresent it. The last historical
+ * point carries *both* keys, which is what joins the two lines visually; without
+ * it the forecast line starts detached from the history it continues.
+ *
+ * @param {Array<{month: string, savings: number}>} history from buildChartData
+ * @param {Array<{year: number, month: number, projected_amount: string}>} projections
+ *        from GET /forecast/savings
+ */
+export function appendSavingsForecast(history, projections) {
+  if (!history?.length || !projections?.length) return history ?? [];
+
+  const merged = history.map((row, i) =>
+    i === history.length - 1 ? { ...row, projected: row.savings } : row
+  );
+
+  for (const p of projections) {
+    merged.push({
+      month: MONTH_NAMES[p.month - 1],
+      projected: Math.max(0, Number(p.projected_amount)),
+    });
+  }
+  return merged;
+}

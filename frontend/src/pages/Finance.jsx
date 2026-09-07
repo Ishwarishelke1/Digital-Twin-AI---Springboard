@@ -106,10 +106,20 @@ function buildExpenseChartData(transactions, forecast) {
       };
     });
 
+  // Projections go in their own key. Pushing them into `expense` alongside the
+  // actuals — as this did — made the chart draw one unbroken solid line across
+  // both, so a viewer could not tell where measurement stopped and estimation
+  // began. The last historical month carries both keys, which is what joins the
+  // two lines; without it the projection starts detached.
   const projected = (forecast?.projections || []).map((p) => ({
     month: monthLabel(p.year, p.month),
-    expense: Math.round(Number(p.projected_amount)),
+    projected: Math.round(Number(p.projected_amount)),
   }));
+
+  if (historical.length && projected.length) {
+    const last = historical[historical.length - 1];
+    historical[historical.length - 1] = { ...last, projected: last.expense };
+  }
 
   return [...historical, ...projected];
 }

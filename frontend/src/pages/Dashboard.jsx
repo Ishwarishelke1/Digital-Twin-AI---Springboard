@@ -20,12 +20,14 @@ import { getUser, addGoal } from "../services/userService";
 import { getCashflow } from "../services/financeService";
 import { getSessions } from "../services/studyService";
 import { getTrendSummary } from "../services/trendService";
+import { getSavingsForecast } from "../services/forecastService";
 import { getProductivityScore } from "../services/productivityService";
 import { getConsistencyScore } from "../services/habitAnalyticsService";
 import { getActivityHistory } from "../services/activityService";
-import { buildChartData, computeSavingsRate, buildStudyChartData } from "../utils/dashboardHelpers";
+import { buildChartData, computeSavingsRate, buildStudyChartData, appendSavingsForecast } from "../utils/dashboardHelpers";
 import { activityBadgeTone } from "../utils/activityBadge";
 import { CHART_COLORS } from "../utils/chartColors";
+import { formatCurrency } from "../utils/currency";
 import { useAuth } from "../context/useAuth";
 
 /**
@@ -106,6 +108,8 @@ function AddRecordMenu() {
 function Dashboard() {
   const { refreshUser } = useAuth();
   const [userData, setUserData]         = useState(null);
+  // Dashboard fetches its own user copy rather than reading context.
+  const currency = userData?.preferences?.currency ?? "USD";
   const [financeChart, setFinanceChart] = useState([]);
   const [studyChart, setStudyChart]     = useState([]);
   const [savingsRatePct, setSavingsRatePct] = useState(null);
@@ -115,22 +119,28 @@ function Dashboard() {
   const [recentActivity, setRecentActivity] = useState([]);
   const [isLoading, setIsLoading]       = useState(true);
   const [addingGoal, setAddingGoal]     = useState(false);
+  const [forecastMethod, setForecastMethod] = useState(null);
 
   useEffect(() => {
     async function fetchAll() {
       try {
-        const [user, cashflow, studySessions, trendSummary, productivity, consistency, activity] = await Promise.all([
-          getUser(),
-          getCashflow(6),
-          getSessions({ limit: 50 }),
-          getTrendSummary(),
-          getProductivityScore(),
-          getConsistencyScore(),
-          getActivityHistory({ limit: 5 }),
-        ]);
+        const [user, cashflow, studySessions, trendSummary, productivity, consistency, activity, savingsForecast] =
+          await Promise.all([
+            getUser(),
+            getCashflow(6),
+            getSessions({ limit: 50 }),
+            getTrendSummary(),
+            getProductivityScore(),
+            getConsistencyScore(),
+            getActivityHistory({ limit: 5 }),
+            // Non-fatal: the chart falls back to history alone if this fails,
+            // rather than taking the whole dashboard down for a projection.
+            getSavingsForecast(3).catch(() => null),
+          ]);
 
         setUserData(user);
-        setFinanceChart(buildChartData(cashflow));
+        setFinanceChart(appendSavingsForecast(buildChartData(cashflow), savingsForecast?.projections));
+        setForecastMethod(savingsForecast?.method_used ?? null);
         setSavingsRatePct(computeSavingsRate(cashflow));
         setStudyChart(buildStudyChartData(studySessions.data || []));
         setTrend(trendSummary);
@@ -212,7 +222,7 @@ function Dashboard() {
                 value={savingsRate}
                 sublabel={
                   trend?.savings?.projected_savings?.length
-                    ? `Predicted next month: $${Math.round(trend.savings.projected_savings[0].value).toLocaleString()}`
+                    ? `Predicted next month: ${formatCurrency(Math.round(trend.savings.projected_savings[0].value), currency)}`
                     : "No transactions logged yet"
                 }
               />
@@ -255,7 +265,7 @@ function Dashboard() {
 
             <Card className="lg:col-span-2">
               <h3 className="mb-5 text-lg font-semibold text-slate-800 dark:text-slate-100">Financial Overview</h3>
-              <FinanceChart data={financeChart} />
+              <FinanceChart data={financeChart} currency={currency} forecastMethod={forecastMethod} />
             </Card>
 
             <Card>
@@ -303,9 +313,9 @@ function Dashboard() {
 
               <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
                 {trend
-                  ? `Predicted savings next month: $${Math.round(
-                      trend.savings?.projected_savings?.[0]?.value ?? 0
-                    ).toLocaleString()} (data sufficiency ${Math.round((trend.savings?.confidence_score ?? 0) * 100)}%).`
+                  ? `Predicted savings next month: ${formatCurrency(
+                      Math.round(trend.savings?.projected_savings?.[0]?.value ?? 0), currency
+                    )} (data sufficiency ${Math.round((trend.savings?.confidence_score ?? 0) * 100)}%).`
                   : "Log a few transactions on the Finance page to get a personalized savings prediction."}
               </p>
 
