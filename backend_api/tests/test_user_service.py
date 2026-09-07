@@ -327,3 +327,42 @@ async def test_delete_active_goal_uses_pull_scoped_to_one_goal():
     query_filter, update_doc = call_args[0]
     assert query_filter == {"_id": user.id}
     assert update_doc["$pull"] == {"active_goals": {"goal_id": "goal-b"}}
+
+
+# ─── ActiveGoalResponse construction ─────────────────────────────────────────────
+
+def test_active_goal_response_requires_status_and_accepts_completed_at():
+    """Guards a real bug: api/v1/users.py's list_goals built ActiveGoalResponse
+    without `status`, which is required — so GET /users/me/goals raised a
+    ValidationError and returned 500 on every call. It went unnoticed because the
+    frontend reads goals from GET /users/me instead of that route."""
+    from datetime import datetime, timezone
+    from decimal import Decimal
+
+    import pytest as _pytest
+    from pydantic import ValidationError
+
+    from models.enums import GoalCategory, GoalStatus
+    from schemas.user_schema import ActiveGoalResponse
+
+    base = dict(
+        goal_id="g1",
+        title="Laptop fund",
+        category=GoalCategory.FINANCE,
+        target_value=Decimal("1000"),
+        current_value=Decimal("1000"),
+        unit="INR",
+        target_date=datetime.now(timezone.utc),
+        created_at=None,
+    )
+
+    with _pytest.raises(ValidationError):
+        ActiveGoalResponse(**base)  # no status — must not silently succeed
+
+    completed = datetime.now(timezone.utc)
+    resp = ActiveGoalResponse(**base, status=GoalStatus.COMPLETED, completed_at=completed)
+    assert resp.status is GoalStatus.COMPLETED
+    assert resp.completed_at == completed
+
+    # completed_at is optional — goals predating the field, and incomplete goals
+    assert ActiveGoalResponse(**base, status=GoalStatus.ACTIVE).completed_at is None

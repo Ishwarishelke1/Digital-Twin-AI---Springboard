@@ -35,7 +35,7 @@ function ScenarioComparison({ scenarios }) {
               ))}
             </div>
 
-            <p className="mt-3 text-xs font-medium text-indigo-600 dark:text-indigo-400">
+            <p className="mt-3 text-xs font-medium text-indigo-600 dark:text-indigo-400 dark:text-indigo-400">
               Score: {Math.round(scenario.score)}/100
             </p>
           </div>

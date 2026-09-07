@@ -4,6 +4,19 @@ A full-stack personal life dashboard that tracks finance, study, and daily habit
 
 ---
 
+## Documentation
+
+| File | Covers | Describes |
+| :--- | :--- | :--- |
+| `README.md` | Project overview, setup, features | Current state |
+| `CLAUDE.md` | Code conventions and non-obvious behavior | Current state |
+| `SKILLS.md` | The design-review workflow frontend changes go through | Current state |
+| `IMPLEMENTATION_PLAN.md` | Architecture roadmap — event sourcing, ML models, causal reasoning, simulation, decision engine | **Planned, not built** |
+
+`IMPLEMENTATION_PLAN.md` is a forward-looking plan derived from an engineering design review. Nothing in it has been implemented yet — treat the other three files and the code itself as the authority on how the system behaves today.
+
+---
+
 ## Repository Structure
 
 ```text
@@ -61,6 +74,36 @@ GROQ_API_KEY=
 ```
 
 `backend_api/core/config.py` resolves this file's path relative to its own location, and `frontend/vite.config.js` sets `envDir` to the repo root — so this works regardless of which directory you run either app from. There's no per-app `.env`/`.env.example` anymore; only `VITE_`-prefixed vars ever reach client-side code, so backend secrets stay server-only even though the file is shared.
+
+### Staging vs. production data
+
+`MONGODB_DB_NAME` selects the database. It currently defaults to `digital_twin_ai_prod`, so a
+**missing** env var fails *toward* production rather than away from it — set it explicitly.
+
+Scripts that delete or overwrite data (`scripts/seed_zohaib.py`, and any future backfill) call
+`core/db_guard.py`'s `require_non_production()` before touching the database. It refuses to run
+when `NODE_ENV=production` or when the database name contains `prod` / `production` / `live`:
+
+```bash
+# Blocked — refuses and explains why
+python3 scripts/seed_zohaib.py
+
+# Intended usage: point at a throwaway/staging database first
+MONGODB_DB_NAME=digital_twin_ai_staging python3 scripts/seed_zohaib.py
+
+# Deliberate production run — must name the database exactly, and prints a warning
+DESTRUCTIVE_WRITE_ALLOW_DB=digital_twin_ai_prod python3 scripts/seed_zohaib.py
+```
+
+**Setting up staging** (one-time, and a prerequisite for the work in `IMPLEMENTATION_PLAN.md`):
+
+1. Create a second database on the existing Atlas cluster — or better, a separate free-tier
+   cluster, so a mistake cannot touch production at all.
+2. Point `MONGODB_DB_NAME` (and `MONGODB_URI`, if a separate cluster) at it.
+3. Seed it: `MONGODB_DB_NAME=digital_twin_ai_staging python3 scripts/seed_zohaib.py`
+4. **Verify a restore actually works** before relying on it — an untested backup is not a backup.
+
+Until step 4 is done, treat every migration as unrehearsed and irreversible.
 
 ### 1. Backend (FastAPI)
 

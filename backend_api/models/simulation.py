@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
+import pymongo
 from beanie import Document, PydanticObjectId
 from pydantic import BaseModel, Field
 
@@ -50,6 +51,14 @@ class Simulation(Document):
 
     class Settings:
         name = "simulations"
+        # Every query on this collection is per-user: history listing sorts by
+        # created_at desc (simulation_service.get_history), and account deletion
+        # does a delete-by-user_id (user_service). Without this the history page
+        # and account deletion both scan the whole collection — matches the
+        # pattern models/activity.py already uses.
+        indexes = [
+            [("user_id", pymongo.ASCENDING), ("created_at", pymongo.DESCENDING)],
+        ]
 
     class Config:
         populate_by_name = True
@@ -69,6 +78,13 @@ class Recommendation(Document):
 
     class Settings:
         name = "recommendations"
+        # user_id + created_at: per-user listing and delete-by-user (user_service).
+        # user_feedback: feedback_service.get_satisfaction_summary() filters on
+        # `user_feedback != None` app-wide, which is a full scan without this.
+        indexes = [
+            [("user_id", pymongo.ASCENDING), ("created_at", pymongo.DESCENDING)],
+            [("user_feedback", pymongo.ASCENDING)],
+        ]
 
     class Config:
         populate_by_name = True

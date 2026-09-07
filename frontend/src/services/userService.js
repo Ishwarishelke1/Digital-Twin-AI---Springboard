@@ -8,10 +8,14 @@ import api from "./api";
 /**
  * Fetch the complete user context (profile + preferences + goals + digital_twin_state).
  * GET /api/v1/users/me
+ * @param {{ isSessionProbe?: boolean }} [options] - pass `isSessionProbe: true` from
+ *   AuthContext's mount-time "am I logged in?" check. A 401 there is a valid answer
+ *   ("no session"), not an expired-session event, so it must not trigger api.js's
+ *   redirect-to-login — otherwise every public route bounces to /login on load.
  * @returns {Promise<UserResponse>}
  */
-export const getUser = async () => {
-  const response = await api.get("/users/me");
+export const getUser = async ({ isSessionProbe = false } = {}) => {
+  const response = await api.get("/users/me", { skipAuthRedirect: isSessionProbe });
   return response.data;
 };
 
@@ -61,5 +65,21 @@ export const deleteGoal = async (id) => {
 
 export const deleteUser = async () => {
   const response = await api.delete("/users/me");
+  return response.data;
+};
+/**
+ * Completion probability for each active goal.
+ * GET /api/v1/users/me/goals/predictions
+ *
+ * A null `probability` with a populated `reason` is expected, not an error: the
+ * model refuses on goals with too little history, or whose inputs fall outside
+ * what it was trained on, rather than inventing a figure. Entries also carry
+ * `trained_on` — currently "synthetic" — which the UI surfaces so the number is
+ * never read as more grounded than it is.
+ *
+ * @returns {Promise<Array<{goal_id, probability, reason, trained_on, model_ece}>>}
+ */
+export const getGoalPredictions = async () => {
+  const response = await api.get("/users/me/goals/predictions");
   return response.data;
 };

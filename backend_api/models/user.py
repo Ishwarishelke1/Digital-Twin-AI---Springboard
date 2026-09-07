@@ -57,6 +57,19 @@ class ActiveGoal(BaseModel):
     # for both new goals and every pre-existing goal subdocument (which has no status
     # key at all), matching the token_version backward-compatibility pattern above.
     status: GoalStatus = Field(default=GoalStatus.ACTIVE)
+    # Set once, on the first ACTIVE → COMPLETED transition, and deliberately NOT
+    # cleared if progress later dips back below target (deleting a linked
+    # transaction reverses current_value): the completion happened, and a later
+    # reversal is a separate fact. `status` stays symmetric and reversible;
+    # this field is the durable record of *when* the goal was first met.
+    #
+    # This is the training label for goal-completion prediction — "did it
+    # complete before target_date" is not derivable without it, and it is only
+    # capturable going forward, which is why it exists ahead of any model.
+    # Pre-existing goals default to None and are excluded from training rather
+    # than having a completion date imputed. Same backward-compatibility shape
+    # as token_version / GoalStatus.
+    completed_at: Optional[datetime] = Field(default=None)
 
     class Config:
         populate_by_name = True

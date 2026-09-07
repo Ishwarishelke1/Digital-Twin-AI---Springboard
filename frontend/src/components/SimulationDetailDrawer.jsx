@@ -98,7 +98,7 @@ function SimulationDetailDrawer({ simulationId, open, onClose }) {
                 <div key={scenario.name} className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{scenario.name}</span>
-                    <span className="text-xs text-slate-400">confidence {Math.round(scenario.confidence_score * 100)}%</span>
+                    <span className="text-xs text-slate-400">data sufficiency {Math.round(scenario.confidence_score * 100)}%</span>
                   </div>
                   <p className="mt-2 font-mono text-lg tabular-nums text-slate-800 dark:text-slate-100">
                     {formatValue(scenario.primary_metric_value)}

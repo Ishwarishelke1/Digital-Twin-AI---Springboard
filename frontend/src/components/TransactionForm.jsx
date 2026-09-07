@@ -175,7 +175,7 @@ function TransactionForm({
             name="is_recurring"
             checked={!!formData.is_recurring}
             onChange={handleChange}
-            className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+            className="h-4 w-4 rounded border-slate-300 text-indigo-600 dark:text-indigo-400 focus:ring-indigo-500"
           />
           Recurring transaction
         </label>

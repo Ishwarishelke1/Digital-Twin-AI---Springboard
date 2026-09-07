@@ -30,7 +30,7 @@ function SimulationRecommendationCard({ recommendation, onFeedback }) {
   return (
     <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-6 shadow-sm dark:border-indigo-500/30 dark:bg-indigo-500/10">
       <div className="mb-4 flex items-start gap-3">
-        <Sparkles size={22} strokeWidth={1.8} className="mt-0.5 shrink-0 text-indigo-600 dark:text-indigo-400" />
+        <Sparkles size={22} strokeWidth={1.8} className="mt-0.5 shrink-0 text-indigo-600 dark:text-indigo-400 dark:text-indigo-400" />
 
         <div>
           <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">AI Recommendation</h3>

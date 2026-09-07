@@ -102,6 +102,7 @@ function Goals() {
                 key={g.goal_id}
                 title={g.title}
                 value={`${Number(g.current_value).toLocaleString()} / ${Number(g.target_value).toLocaleString()} ${g.unit}`}
+                targetDate={g.target_date}
                 onEdit={() => startEditGoal(g)}
                 onDelete={() => handleDeleteGoal(g.goal_id)}
               />
@@ -122,6 +123,7 @@ function Goals() {
                 title={g.title}
                 value={`${Number(g.current_value).toLocaleString()} / ${Number(g.target_value).toLocaleString()} ${g.unit}`}
                 completed
+                targetDate={g.target_date}
                 onEdit={() => startEditGoal(g)}
                 onDelete={() => handleDeleteGoal(g.goal_id)}
               />

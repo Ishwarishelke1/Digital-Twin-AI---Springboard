@@ -41,7 +41,7 @@ function ForgotPassword() {
 
         <div className="w-full shrink-0 p-8 sm:p-9 md:w-[380px]">
           <div className="mb-6">
-            <p className="text-sm font-semibold uppercase tracking-wide text-indigo-600">Digital Twin AI</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">Digital Twin AI</p>
             <h1 className="mt-2 text-2xl font-semibold text-slate-800 dark:text-slate-100">Forgot Password</h1>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Enter your email to receive a reset link.</p>
           </div>
@@ -64,7 +64,7 @@ function ForgotPassword() {
           </form>
 
           <p className="mt-6 text-center text-sm">
-            <Link to="/login" className="font-semibold text-indigo-600 hover:underline">
+            <Link to="/login" className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
               Back to Login
             </Link>
           </p>

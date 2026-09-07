@@ -21,7 +21,7 @@ function PredictionCards({ predictions = [] }) {
             Current Score : <strong className="font-mono tabular-nums text-slate-800 dark:text-slate-100">{item.current}%</strong>
           </p>
 
-          <p className="mt-1 text-sm text-violet-600">
+          <p className="mt-1 text-sm text-violet-600 dark:text-violet-400">
             ✦ Future Prediction : <strong className="font-mono tabular-nums">{item.future}%</strong>
           </p>
 

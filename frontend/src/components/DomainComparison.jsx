@@ -68,7 +68,7 @@ function DomainComparison() {
                   {best ? (
                     <>
                       <p className="text-xs text-slate-500 dark:text-slate-400">Best: {best.name}</p>
-                      <p className="mt-2 text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                      <p className="mt-2 text-xs font-medium text-indigo-600 dark:text-indigo-400 dark:text-indigo-400">
                         Score: {Math.round(best.score)}/100
                       </p>
                     </>

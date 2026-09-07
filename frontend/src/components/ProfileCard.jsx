@@ -17,7 +17,7 @@ function ProfileCard({ user, onEdit }) {
     <div className="rounded-2xl border border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-800 p-8 text-center shadow-sm">
 
       <div
-        className="mx-auto mb-5 flex h-35 w-35 items-center justify-center rounded-full bg-indigo-100 text-4xl font-semibold text-indigo-600"
+        className="mx-auto mb-5 flex h-35 w-35 items-center justify-center rounded-full bg-indigo-100 text-4xl font-semibold text-indigo-600 dark:text-indigo-400"
         role="img"
         aria-label={`Avatar for ${name}`}
       >

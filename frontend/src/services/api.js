@@ -6,7 +6,9 @@
  * - withCredentials: true — auth is an httpOnly cookie the backend sets on
  *   login/register/change-password, not a token this code reads or attaches;
  *   the browser sends it automatically on every request to the API origin.
- * - Response interceptor: redirects to /login on 401
+ * - Response interceptor: redirects to /login on 401, except on public routes
+ *   (/login, /signup, /forgot-password) or for requests marked
+ *   `skipAuthRedirect` — see PUBLIC_ROUTES below for why both are needed.
  */
 import axios from "axios";
 
@@ -20,6 +22,19 @@ const api = axios.create({
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 500;
+
+/** Routes reachable while logged out. A 401 fired from one of these must NOT
+ * redirect: bouncing a visitor off /signup or /forgot-password to /login makes
+ * those pages unreachable by direct navigation (shared link, bookmark, refresh),
+ * which is exactly what happened before — AuthContext's mount-time session probe
+ * 401s on every route, and the redirect below then yanked the visitor to /login
+ * before the signup form ever rendered. Password reset is used by definition by
+ * people who cannot log in, so this made it unreachable for its whole audience. */
+const PUBLIC_ROUTES = ["/login", "/signup", "/forgot-password"];
+
+function onPublicRoute() {
+  return PUBLIC_ROUTES.some((route) => window.location.pathname.startsWith(route));
+}
 
 /** Only retry idempotent GETs that failed due to a transient network/server issue —
  * never retry POST/PATCH/DELETE, which could double-submit a mutation. */
@@ -43,8 +58,11 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      // Redirect to login only if not already there
-      if (!window.location.pathname.includes("/login")) {
+      // `skipAuthRedirect` opts a request out entirely — used by the mount-time
+      // session probe, where a 401 is a valid answer ("not logged in"), not an
+      // expired-session event worth redirecting for.
+      const isProbe = error.config?.skipAuthRedirect;
+      if (!isProbe && !onPublicRoute()) {
         window.location.href = "/login";
       }
       return Promise.reject(error);

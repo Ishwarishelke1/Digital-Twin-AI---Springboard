@@ -103,7 +103,7 @@ function Signup() {
       <div className="w-full flex-1 overflow-y-auto p-6 sm:p-10">
         <div className="mx-auto w-full max-w-sm py-6">
         <div className="mb-6">
-          <p className="text-sm font-semibold uppercase tracking-wide text-indigo-600">Digital Twin AI</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">Digital Twin AI</p>
           <h1 className="mt-2 text-2xl font-semibold text-slate-800 dark:text-slate-100">Create Account</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Create your new account</p>
         </div>
@@ -243,7 +243,7 @@ function Signup() {
 
         <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
           Already have an account?{" "}
-          <Link to="/login" className="font-semibold text-indigo-600 hover:underline">
+          <Link to="/login" className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
             Login
           </Link>
         </p>

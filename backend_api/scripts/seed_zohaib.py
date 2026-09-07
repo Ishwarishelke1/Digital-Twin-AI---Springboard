@@ -6,6 +6,7 @@ demo/presentation account. Run once: python3 scripts/seed_zohaib.py
 """
 import os
 import random
+import sys
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -14,7 +15,17 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 from bson import Decimal128
 
+# Import from the package root so this runs the same way as the other scripts
+# (python3 scripts/seed_zohaib.py from backend_api/).
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from core.db_guard import require_non_production  # noqa: E402
+
 load_dotenv()
+
+# This script calls delete_many() on three collections and overwrites active_goals.
+# Refuse to do that to a production database unless explicitly authorised.
+require_non_production("wipe and re-seed zohaib@gmail.com's finance/study/habit/goal data")
 
 client = MongoClient(os.environ["MONGODB_URI"])
 db = client[os.environ["MONGODB_DB_NAME"]]
