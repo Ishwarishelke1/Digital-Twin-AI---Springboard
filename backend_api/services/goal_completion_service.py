@@ -34,6 +34,8 @@ from beanie import PydanticObjectId
 
 from models.enums import TransactionType
 from models.finance import FinancialRecord
+from models.habit import HabitTracking
+from models.study import StudyActivity
 from models.user import ActiveGoal, User
 
 logger = logging.getLogger("digital_twin_ai.goal_completion")
@@ -92,23 +94,48 @@ def _f(value) -> float:
     return float(value) if isinstance(value, Decimal) else float(value or 0.0)
 
 
+def _aware(dt: datetime) -> datetime:
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
 async def _contribution_stats(user_id: PydanticObjectId, goal_id: str, now: datetime):
-    """Count and recency of linked contributions. Mirrors the generator's
-    contribution_count / days_since_last_contribution features."""
-    records = await FinancialRecord.find(
+    """Count and recency of linked contributions, across all three sources.
+
+    A goal's progress can come from a finance transaction, a study session or a
+    habit log — all three call goal_progress_service.adjust_active_goal_progress
+    when they carry a linked_goal_id. Counting only financial records (as this
+    did originally) reported contribution_count = 0 for an actively-worked study
+    or habit goal, which the model reads as a manually-tracked or abandoned goal.
+    Finance goals were unaffected, so the defect was invisible until a STUDY goal
+    was tested.
+    """
+    finance = await FinancialRecord.find(
         FinancialRecord.user_id == user_id,
         FinancialRecord.linked_goal_id == goal_id,
     ).to_list()
-    contributing = [
-        r for r in records
+    # Only deposits and investments move a goal forward — GOAL_PROGRESS_TYPES in
+    # finance_service. An expense linked to a goal is not progress toward it.
+    dates = [
+        _aware(r.transaction_date)
+        for r in finance
         if r.type in (TransactionType.SAVINGS_DEPOSIT, TransactionType.INVESTMENT)
     ]
-    if not contributing:
+
+    study = await StudyActivity.find(
+        StudyActivity.user_id == user_id,
+        StudyActivity.linked_goal_id == goal_id,
+    ).to_list()
+    dates += [_aware(r.session_date) for r in study]
+
+    habits = await HabitTracking.find(
+        HabitTracking.user_id == user_id,
+        HabitTracking.linked_goal_id == goal_id,
+    ).to_list()
+    dates += [_aware(r.log_date) for r in habits]
+
+    if not dates:
         return 0, None
-    latest = max(r.transaction_date for r in contributing)
-    if latest.tzinfo is None:
-        latest = latest.replace(tzinfo=timezone.utc)
-    return len(contributing), (now - latest).days
+    return len(dates), (now - max(dates)).days
 
 
 def _prior_completion_rate(user: User, exclude_goal_id: str) -> float:
