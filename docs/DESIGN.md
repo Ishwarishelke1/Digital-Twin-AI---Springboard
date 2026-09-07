@@ -1,5 +1,12 @@
 # Design system — "Field Notes"
 
+> **Superseded.** This documents "Field Notes", the visual identity the app carried before the
+> ground-up redesign. The app now runs on **"Studio"** — warm paper, Fraunces display serif, Inter
+> body, JetBrains Mono for every figure — defined as design tokens in `frontend/src/index.css`.
+> Kept for the reasoning it records about spacing, iconography and component states, much of which
+> carried forward; its specific colour and type values did not. See [`SKILLS.md`](SKILLS.md) for the
+> workflow the redesign went through.
+
 This documents the visual design rules implemented across the app. It's a
 companion to `CLAUDE.md` (which covers code conventions) — this file covers
 *visual* rules: color, type, spacing, iconography, and where each lives in

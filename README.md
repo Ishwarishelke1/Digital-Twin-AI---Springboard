@@ -10,14 +10,21 @@ A full-stack personal life dashboard that tracks finance, study, and daily habit
 | :--- | :--- | :--- |
 | `README.md` | Project overview, setup, features | Current state |
 | `CLAUDE.md` | Code conventions and non-obvious behavior | Current state |
-| `SKILLS.md` | The design-review workflow frontend changes go through | Current state |
-| `REMEDIATION_PLAN.md` | Defects found by auditing the codebase, and how each was fixed | Current state |
-| `IMPLEMENTATION_PLAN.md` | Architecture roadmap — event sourcing, memory, causal reasoning, simulation, decision engine | **Mostly planned, not built** |
+| [`docs/CAPSTONE_REPORT.md`](docs/CAPSTONE_REPORT.md) | The project written up end to end: architecture, both ML models, results, the defects found, limitations | Current state |
+| [`docs/REMEDIATION_PLAN.md`](docs/REMEDIATION_PLAN.md) | Defects found by auditing the codebase, and how each was fixed | Current state |
+| [`docs/SKILLS.md`](docs/SKILLS.md) | The design-review workflow frontend changes go through | Current state |
+| [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | Architecture roadmap — event sourcing, memory, causal reasoning, simulation, decision engine | **Mostly planned, not built** |
+| [`docs/DESIGN.md`](docs/DESIGN.md) | The "Field Notes" visual design system | **Superseded by "Studio"** |
 
-`IMPLEMENTATION_PLAN.md` is a forward-looking plan derived from an engineering design review.
+Everything but `README.md` and `CLAUDE.md` lives in [`docs/`](docs/), which has its own
+[index](docs/README.md). Those two stay at the root because that is where a new contributor and
+the tooling look for them.
+
+`docs/IMPLEMENTATION_PLAN.md` is a forward-looking plan derived from an engineering design review.
 Two parts of it have since been built — the staging database (Phase 0.1) and the goal-completion
-model (Model 2, all three steps). Everything else in it is unbuilt, and is marked as such. Treat
-the code and the other documents as the authority on how the system behaves today.
+model (Model 2, all three steps), with a second model (habit failure) added beyond it. Everything
+else in it is unbuilt, and is marked as such. Treat the code and the other documents as the
+authority on how the system behaves today.
 
 ---
 
@@ -50,6 +57,9 @@ Digital-Twin-AI---Springboard/
 │       ├── context/         Auth context / global state
 │       ├── services/        Axios API clients (one per backend resource)
 │       └── routes/          React Router route tree
+│
+└── docs/                  Capstone report, remediation log, design-review
+                            workflow, architecture roadmap, legacy design system
 ```
 
 ---
@@ -101,7 +111,7 @@ MONGODB_DB_NAME=digital_twin_ai_staging python3 scripts/seed_zohaib.py
 DESTRUCTIVE_WRITE_ALLOW_DB=digital_twin_ai_prod python3 scripts/seed_zohaib.py
 ```
 
-**Setting up staging** (one-time, and a prerequisite for the work in `IMPLEMENTATION_PLAN.md`):
+**Setting up staging** (one-time, and a prerequisite for the work in `docs/IMPLEMENTATION_PLAN.md`):
 
 1. Create a second database on the existing Atlas cluster — or better, a separate free-tier
    cluster, so a mistake cannot touch production at all.
@@ -146,7 +156,7 @@ npm run dev
 - **Assistant** — grounded chat over the user's own profile, goals and twin state, using Gemini with a Groq fallback. Rate-limited, since LLM calls cost quota.
 - **Activity** — a unified audit log of create/update/delete actions across the app.
 - **Dark mode** — a manual toggle (stored in user preferences), applied consistently across the whole UI via a `data-theme` attribute.
-- **Design system** — "Studio": a warm-paper visual identity (Fraunces display serif, Inter body, JetBrains Mono for every number) defined as design tokens in `frontend/src/index.css`, so it cascades to every page and component with no per-file styling. See `SKILLS.md` for the design-review workflow this was built through.
+- **Design system** — "Studio": a warm-paper visual identity (Fraunces display serif, Inter body, JetBrains Mono for every number) defined as design tokens in `frontend/src/index.css`, so it cascades to every page and component with no per-file styling. See `docs/SKILLS.md` for the design-review workflow this was built through.
 
 ---
 

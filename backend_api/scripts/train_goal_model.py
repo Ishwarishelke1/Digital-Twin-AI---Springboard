@@ -1,7 +1,7 @@
 """
 scripts/train_goal_model.py — Trains and evaluates the goal-completion model.
 
-This is Model 2, step 3 in IMPLEMENTATION_PLAN.md. Steps 1 (capture the label,
+This is Model 2, step 3 in docs/IMPLEMENTATION_PLAN.md. Steps 1 (capture the label,
 ActiveGoal.completed_at) and 2 (generate_synthetic_users.py) must have run first.
 
 WHAT IS BEING MEASURED, AND WHY IT IS NOT ACCURACY

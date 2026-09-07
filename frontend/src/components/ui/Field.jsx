@@ -53,10 +53,10 @@ function extractOptions(children) {
 
 /**
  * Shared select — a custom-styled dropdown (not the native OS menu), per
- * design.md's direction: rounded-lg/hairline-border/indigo-accent closed box,
+ * docs/DESIGN.md's direction: rounded-lg/hairline-border/indigo-accent closed box,
  * a floating panel with the selected row highlighted in indigo + a check
  * mark. Reuses the same click-outside/Escape-to-close pattern established by
- * Dashboard.jsx's AddRecordMenu / Sidebar.jsx's ProfileMenu (see design.md's
+ * Dashboard.jsx's AddRecordMenu / Sidebar.jsx's ProfileMenu (see docs/DESIGN.md's
  * "Navigation" section — "reuse that pattern for any future dropdown rather
  * than inventing a new one"). Drop-in for the native <select> it replaces:
  * same props (name/value/onChange/children as <option>), so no call site

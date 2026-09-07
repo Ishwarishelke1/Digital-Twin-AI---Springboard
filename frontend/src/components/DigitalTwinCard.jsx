@@ -45,7 +45,7 @@ function DigitalTwinCard({ twinState }) {
   // badge was permanently "Not enough data yet" — a visible metric that never
   // changes erodes trust in the real numbers beside it. Kept as a conditional
   // rather than deleted: the moment the field is populated the badge returns
-  // with no further change here. See REMEDIATION_PLAN.md §6 for why the planned
+  // with no further change here. See docs/REMEDIATION_PLAN.md §6 for why the planned
   // clustering model was reconsidered rather than built.
   const burnout = twinState.burnout_risk_cluster ?? "UNKNOWN";
   const showBurnout = burnout !== "UNKNOWN";

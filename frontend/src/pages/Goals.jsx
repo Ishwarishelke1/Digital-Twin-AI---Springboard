@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 
 import GoalCard from "../components/GoalCard";
@@ -8,7 +8,7 @@ import Button from "../components/ui/Button";
 import Modal from "../components/ui/Modal";
 import EmptyState from "../components/ui/EmptyState";
 
-import { addGoal, updateGoal, deleteGoal } from "../services/userService";
+import { addGoal, updateGoal, deleteGoal, getGoalPredictions } from "../services/userService";
 import { useAuth } from "../context/useAuth";
 
 /**
@@ -26,6 +26,25 @@ function Goals() {
   const [addingGoal, setAddingGoal] = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
   const [confirmDeleteGoalId, setConfirmDeleteGoalId] = useState(null);
+  // Keyed by goal_id. Fetched separately from the user payload: predictions need
+  // the model loaded and a per-goal feature build, so a failure here must leave
+  // the goals rendering rather than take the page down.
+  const [predictions, setPredictions] = useState({});
+
+  const goalCount = user?.active_goals?.length ?? 0;
+  useEffect(() => {
+    let cancelled = false;
+    getGoalPredictions()
+      .then((rows) => {
+        if (!cancelled) setPredictions(Object.fromEntries(rows.map((r) => [r.goal_id, r])));
+      })
+      .catch(() => {
+        if (!cancelled) setPredictions({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [goalCount]);
 
   const handleAddGoal = async (goalPayload) => {
     await addGoal(goalPayload);
@@ -103,6 +122,7 @@ function Goals() {
                 title={g.title}
                 value={`${Number(g.current_value).toLocaleString()} / ${Number(g.target_value).toLocaleString()} ${g.unit}`}
                 targetDate={g.target_date}
+                prediction={predictions[g.goal_id]}
                 onEdit={() => startEditGoal(g)}
                 onDelete={() => handleDeleteGoal(g.goal_id)}
               />
@@ -124,6 +144,7 @@ function Goals() {
                 value={`${Number(g.current_value).toLocaleString()} / ${Number(g.target_value).toLocaleString()} ${g.unit}`}
                 completed
                 targetDate={g.target_date}
+                prediction={predictions[g.goal_id]}
                 onEdit={() => startEditGoal(g)}
                 onDelete={() => handleDeleteGoal(g.goal_id)}
               />

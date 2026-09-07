@@ -1,8 +1,8 @@
 # CLAUDE.md
 
-Guidance for working in this repo. See `README.md` for the full project description and setup instructions — this file covers conventions and non-obvious behavior an agent (or a new contributor) needs to know before making changes. For UI/UX-specific work, see `SKILLS.md`, which documents the design-review workflow (audit → visualize → plan → implement) this project's frontend changes go through.
+Guidance for working in this repo. See `README.md` for the full project description and setup instructions — this file covers conventions and non-obvious behavior an agent (or a new contributor) needs to know before making changes. For UI/UX-specific work, see `docs/SKILLS.md`, which documents the design-review workflow (audit → visualize → plan → implement) this project's frontend changes go through.
 
-For the forward-looking architecture roadmap — event sourcing, the ML models, the causal/simulation layers — see `IMPLEMENTATION_PLAN.md`. **That file describes work that has not been done yet**, so read it as a plan, never as a description of how the system currently behaves; this file (`CLAUDE.md`) is the authority on current behavior. Where the two disagree, the code and `CLAUDE.md` win.
+For the forward-looking architecture roadmap — event sourcing, the ML models, the causal/simulation layers — see `docs/IMPLEMENTATION_PLAN.md`. **That file describes work that has not been done yet**, so read it as a plan, never as a description of how the system currently behaves; this file (`CLAUDE.md`) is the authority on current behavior. Where the two disagree, the code and `CLAUDE.md` win.
 
 ## Stack
 
@@ -48,7 +48,7 @@ cd frontend && npx eslint . && npx vite build # lint + build check
 - **The color ramp is dual-purposed — check both directions before recoloring a rung.** Most `slate-*`/`indigo-*`/etc. steps aren't single-role: e.g. `slate-300` is both a light-mode border/fill value *and*, via `dark:text-slate-300` (used at dozens of call sites), a dark-mode text color that must independently clear 4.5:1 against the dark card. Recoloring a rung for one role without checking its other usages is a real, previously-made mistake in this repo — grep for the class name across `.jsx` files before assigning it a new hex, not just for the role you're targeting.
 - **Sidebar/`MainLayout`** use an explicit `expanded`/`mobileOpen` state (lifted into `MainLayout.jsx`, persisted to `localStorage`), not CSS `:hover` — the rail must stay keyboard- and touch-operable, not just mouse-hover-operable.
 - **`ui/Field.jsx`'s `Select`** is a custom-styled dropdown (not the native OS popup) with full Arrow/Home/End/Enter/Escape keyboard support — a drop-in replacement for `<select>` (same `name`/`value`/`onChange`/`<option>` children), so no call site needs native-`<select>`-specific handling.
-- Any UI change should go through the workflow in `SKILLS.md` before landing — audit findings first, then a plan, then the edit plus `npx eslint . && npx vite build`.
+- Any UI change should go through the workflow in `docs/SKILLS.md` before landing — audit findings first, then a plan, then the edit plus `npx eslint . && npx vite build`.
 
 ## Testing
 

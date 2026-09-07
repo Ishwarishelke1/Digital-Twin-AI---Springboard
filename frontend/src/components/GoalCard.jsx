@@ -6,7 +6,7 @@ import { Edit, Trash2, CheckCircle2, CalendarDays } from "lucide-react";
  * state a user needs to notice without reading, and it is otherwise invisible
  * because an overdue goal still sits under "Active".
  */
-function TargetDate({ targetDate, completed }) {
+function TargetDate({ targetDate, completed, children }) {
   if (!targetDate) return null;
 
   const due = new Date(targetDate);
@@ -31,11 +31,46 @@ function TargetDate({ targetDate, completed }) {
         {due.toLocaleDateString()}
         {note && ` · ${note}`}
       </span>
+      {children}
     </div>
   );
 }
 
-function GoalCard({ title, value, completed, targetDate, onEdit, onDelete }) {
+/** Model-estimated chance of hitting the target by the deadline.
+ *
+ * Sits on the same row as the date rather than in its own block, so the card
+ * reads as one line of context instead of two stacked panels. Rendered in the
+ * "predicted" plum the design system reserves for model output, so it is
+ * visually separable from the measured figures above it.
+ *
+ * `probability` is null whenever the model declines — too little history, or
+ * inputs outside its trained range — and that is the expected path for a new
+ * goal, not an error. The reason is shown on hover rather than inline, since it
+ * is diagnostic detail rather than something the user must read.
+ */
+function Likelihood({ prediction, completed }) {
+  if (!prediction || completed) return null;
+
+  const { probability, reason } = prediction;
+  if (probability == null) {
+    return (
+      <span className="text-xs text-slate-400 dark:text-slate-500" title={reason ?? ""}>
+        · not enough history
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="text-xs font-medium text-violet-600 dark:text-violet-400"
+      title="Estimated by a model trained on synthetic data"
+    >
+      · {Math.round(probability * 100)}% likely
+    </span>
+  );
+}
+
+function GoalCard({ title, value, completed, targetDate, prediction, onEdit, onDelete }) {
   return(
     <div className={`relative rounded-2xl bg-white dark:bg-slate-800 p-6 text-center shadow-sm ${completed ? "ring-1 ring-emerald-400/60" : ""}`}>
       <div className="absolute right-1.5 top-1.5 flex gap-0.5">
@@ -57,7 +92,9 @@ function GoalCard({ title, value, completed, targetDate, onEdit, onDelete }) {
       )}
       <h3 className="mb-3.5 text-sm font-medium text-slate-500 dark:text-slate-400">{title}</h3>
       <h2 className="font-mono text-xl font-semibold tabular-nums text-indigo-600 dark:text-indigo-400">{value}</h2>
-      <TargetDate targetDate={targetDate} completed={completed} />
+      <TargetDate targetDate={targetDate} completed={completed}>
+        <Likelihood prediction={prediction} completed={completed} />
+      </TargetDate>
     </div>
   );
 }

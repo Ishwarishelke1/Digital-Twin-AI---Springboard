@@ -72,7 +72,7 @@ These are the actual standards this repo's UI is held to, established by prior a
 - Color/radius/shadow tokens: `frontend/src/index.css`'s `@theme` block (the "Studio" warm-paper
   system — Fraunces + Inter + JetBrains Mono, teal accent, soft two-layer shadows — see the inline
   comments there for the rationale behind each override). This superseded the earlier "Field Notes"
-  system in a full ground-up redesign; `frontend/design.md` still describes Field Notes and has not
+  system in a full ground-up redesign; `docs/DESIGN.md` still describes Field Notes and has not
   been rewritten for Studio yet — treat it as historical until it's updated.
 - Shared primitives: `frontend/src/components/ui/` (per `CLAUDE.md`'s Frontend conventions).
 - Chart colors: `frontend/src/utils/chartColors.js` — kept in sync with `index.css` **by hand**
