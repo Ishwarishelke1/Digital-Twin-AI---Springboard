@@ -11,9 +11,13 @@ A full-stack personal life dashboard that tracks finance, study, and daily habit
 | `README.md` | Project overview, setup, features | Current state |
 | `CLAUDE.md` | Code conventions and non-obvious behavior | Current state |
 | `SKILLS.md` | The design-review workflow frontend changes go through | Current state |
-| `IMPLEMENTATION_PLAN.md` | Architecture roadmap — event sourcing, ML models, causal reasoning, simulation, decision engine | **Planned, not built** |
+| `REMEDIATION_PLAN.md` | Defects found by auditing the codebase, and how each was fixed | Current state |
+| `IMPLEMENTATION_PLAN.md` | Architecture roadmap — event sourcing, memory, causal reasoning, simulation, decision engine | **Mostly planned, not built** |
 
-`IMPLEMENTATION_PLAN.md` is a forward-looking plan derived from an engineering design review. Nothing in it has been implemented yet — treat the other three files and the code itself as the authority on how the system behaves today.
+`IMPLEMENTATION_PLAN.md` is a forward-looking plan derived from an engineering design review.
+Two parts of it have since been built — the staging database (Phase 0.1) and the goal-completion
+model (Model 2, all three steps). Everything else in it is unbuilt, and is marked as such. Treat
+the code and the other documents as the authority on how the system behaves today.
 
 ---
 
@@ -29,7 +33,9 @@ Digital-Twin-AI---Springboard/
 │   │                       security, exception handlers
 │   ├── models/              Beanie ODM document models
 │   ├── schemas/             Pydantic request/response schemas
-│   ├── services/            Business logic and analytics aggregations
+│   ├── services/            Business logic, analytics aggregations, and the
+│   │                         goal-completion model's serving path
+│   ├── scripts/             Training, backup/restore drill, data repair, seeding
 │   ├── tests/ + test_regression.py
 │   └── main.py               App entry point
 │
@@ -130,16 +136,75 @@ npm run dev
 
 ## Features
 
-- **Auth** — JWT bearer authentication with automatic token attachment and refresh-on-401 handling via Axios interceptors.
+- **Auth** — JWT issued as an **httpOnly cookie** (not readable by frontend JS), carrying a token-version claim so logout and password-change invalidate every previously issued token at once. Axios sends it via `withCredentials`, retries idempotent GETs on transient failures, and redirects to `/login` on 401 — except on public routes, which must stay reachable while logged out.
 - **Finance** — income/expense/savings tracking, category breakdowns, and savings-goal progress.
 - **Study** — session logging, weekly study-hours chart, subject performance breakdown.
 - **Habits** — daily sleep/water/exercise/screen-time logging with weekly habit-score trend.
 - **Analytics** — productivity score, focus score, consistency score, and completion-percentage engines that power the dashboards.
-- **Prediction** — trend-based forecasts for savings, study, and fitness scores, goal-completion estimates, and an illustrative what-if simulator.
-- **Assistant** — a canned-response preview of an in-app assistant (not yet backed by a real model).
+- **Prediction** — trend-based forecasts for savings, study, and fitness scores, and a scenario simulator. Forecasts auto-select a method from how much history exists (`insufficient_data` → `naive_last_value` → `moving_average` → `linear_regression`) and report which one was used.
+- **Goal-completion model** — a trained classifier estimating the probability a goal is met by its deadline. See [Machine learning](#machine-learning) below.
+- **Assistant** — grounded chat over the user's own profile, goals and twin state, using Gemini with a Groq fallback. Rate-limited, since LLM calls cost quota.
 - **Activity** — a unified audit log of create/update/delete actions across the app.
 - **Dark mode** — a manual toggle (stored in user preferences), applied consistently across the whole UI via a `data-theme` attribute.
 - **Design system** — "Studio": a warm-paper visual identity (Fraunces display serif, Inter body, JetBrains Mono for every number) defined as design tokens in `frontend/src/index.css`, so it cascades to every page and component with no per-file styling. See `SKILLS.md` for the design-review workflow this was built through.
+
+---
+
+## Machine learning
+
+A classifier estimating the probability that an active goal is completed by its `target_date`.
+
+```bash
+cd backend_api
+python3 scripts/generate_synthetic_users.py   # training data
+python3 scripts/train_goal_model.py           # train, evaluate, save artifact
+```
+
+Writes `data/model_eval/evaluation.png` (reliability diagram + coefficients),
+`data/model_eval/metrics.json`, and `models_store/goal_completion.joblib`, which
+`services/goal_completion_service.py` loads to serve `GET /users/me/goals/predictions`.
+All three are gitignored and regenerate deterministically from the seed.
+
+**Results** — logistic regression, held out by *user* rather than by row, since goals from one
+person share that person's habits and a random row split leaks:
+
+| | Accuracy | Lift over baseline | AUC | Brier | ECE |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| Base rate | 52.1% | — | 0.500 | 0.254 | 0.066 |
+| **Logistic regression** | **83.7%** | **+31.6pp** | **0.939** | **0.105** | **0.069** |
+| Gradient boosting | 84.7% | +32.6pp | 0.918 | 0.128 | 0.109 |
+
+Logistic regression ships despite the marginally lower accuracy: the output is shown to a user as
+a probability, so calibration matters more than whether it lands on the right side of 0.5, and its
+expected calibration error is substantially better (0.069 vs 0.109, against a target of < 0.10).
+
+Numbers regenerate from the seed, so re-run both scripts if you change the generator — and
+re-check this table, since it is written by hand.
+
+Two deliberate constraints:
+
+- **It refuses rather than guessing.** Goals with too little history, or whose inputs fall outside
+  the range the model was trained on, return a reason instead of a number. A linear model
+  extrapolates past its training range silently and confidently — it returned 99.8% for a real goal
+  before this guard existed.
+- **It is trained on synthetic data.** Good numbers here demonstrate the pipeline is correct — the
+  model recovers signal that genuinely exists, is calibrated, and beats a baseline. They do **not**
+  establish that it predicts real human behaviour. Only real longitudinal data can.
+
+---
+
+## Maintenance scripts
+
+All live in `backend_api/scripts/` and are dry-run by default where they change data.
+
+| Script | Purpose |
+| :--- | :--- |
+| `backup_restore_drill.py` | Dumps the database, restores it into a scratch copy, and compares per-collection counts. Atlas M0 has no automated backup, so this *is* the backup strategy — and an untested backup is not a backup. |
+| `cleanup_test_accounts.py` | Removes accounts left by tests and QA. Deletion is opt-in by pattern, so an unrecognised address is always kept. `--orphans` finds records whose user no longer exists. |
+| `fix_legacy_goal_ids.py` | Repairs `ObjectId` values in fields the models declare as `str` — Beanie cannot parse those documents at all, so the affected account 500s. |
+| `backtest_forecast_accuracy.py` | Walk-forward accuracy check for the finance forecast. |
+| `benchmark_simulation.py` | Latency check for the scenario simulator. |
+| `seed_zohaib.py` | Rebuilds the demo account's data. **Destructive** — guarded. |
 
 ---
 
@@ -148,5 +213,7 @@ npm run dev
 | Layer | Tools |
 | :--- | :--- |
 | Frontend | React 19, Vite, React Router 7, Tailwind CSS v4, Recharts, Axios, lucide-react, react-toastify (fonts: Fraunces / Inter / JetBrains Mono) |
-| Backend | FastAPI, Motor + Beanie (async MongoDB ODM), Pydantic v2, python-jose (JWT), passlib (bcrypt) |
+| Backend | FastAPI, Motor + Beanie (async MongoDB ODM), Pydantic v2, python-jose (JWT), bcrypt (called directly — passlib 1.7.4 is incompatible with bcrypt ≥ 4.x, see `core/security.py`) |
+| ML | scikit-learn, NumPy, pandas, Matplotlib |
+| AI | Gemini (primary) with Groq fallback, via an OpenAI-compatible client |
 | Database | MongoDB Atlas |
