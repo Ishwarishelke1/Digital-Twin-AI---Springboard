@@ -79,8 +79,8 @@ ADHERENCE_FLOOR = 0.55
 # slightly under 1.0 — completion should be genuinely uncertain, not the default.
 # Calibrated to produce a usable class balance: a dataset that is 98% one class
 # teaches a classifier nothing and cannot be evaluated meaningfully.
-EFFORT_INTERCEPT = 0.80
-EFFORT_DILIGENCE_SLOPE = 1.00
+EFFORT_INTERCEPT = 0.95
+EFFORT_DILIGENCE_SLOPE = 1.15
 
 # Disruption — a stretch where progress largely stops. This is the main source of
 # irreducible uncertainty: it is invisible at the prediction snapshot when it has
@@ -89,6 +89,33 @@ EFFORT_DILIGENCE_SLOPE = 1.00
 DISRUPTION_PROBABILITY = 0.45
 DISRUPTION_LENGTH_DAYS = (10, 45)
 DISRUPTION_EFFORT_MULTIPLIER = 0.15
+
+# Goal duration span. Wide and continuous so the model sees the range real goals
+# actually occupy.
+MIN_DURATION_DAYS = 14
+MAX_DURATION_DAYS = 400
+
+# Where in a goal's life the prediction is taken.
+SNAPSHOT_WINDOW = (0.05, 0.95)
+
+# Some goals are simply abandoned, or tracked entirely outside the app, and carry
+# no linked contributions at all. Without these, contribution_count and
+# days_since_last_contribution never reach the values real goals show and the
+# serving guard rejects them.
+ABANDONED_GOAL_PROBABILITY = 0.18
+
+# Progress updated directly on the goal rather than through a linked transaction.
+# current_value still moves; the contribution log stays empty. Common in the real
+# data, and absent from training it made the model read every manually-tracked
+# goal as abandoned.
+MANUAL_TRACKING_PROBABILITY = 0.30
+
+# Deadline sprint. Effort rises as the deadline nears — people cram before an
+# exam and top up a fund before a due date. Without this the model only ever saw
+# effort decay, so any goal needing to catch up late was scored as near-hopeless:
+# a course 76% through and needing to double its rate came out at 4%, when a late
+# push is an ordinary thing people actually do.
+SPRINT_STRENGTH = 0.7
 
 # Contribution cadence — the fraction of days on which a contribution happens.
 # A savings deposit or study session is a discrete event, not a daily drip, so
@@ -105,6 +132,11 @@ GROUND_TRUTH = {
     "adherence_floor": ADHERENCE_FLOOR,
     "effort_intercept": EFFORT_INTERCEPT,
     "effort_diligence_slope": EFFORT_DILIGENCE_SLOPE,
+    "min_duration_days": MIN_DURATION_DAYS,
+    "max_duration_days": MAX_DURATION_DAYS,
+    "snapshot_window": SNAPSHOT_WINDOW,
+    "abandoned_goal_probability": ABANDONED_GOAL_PROBABILITY,
+    "sprint_strength": SPRINT_STRENGTH,
     "contribution_cadence_base": CONTRIBUTION_CADENCE_BASE,
     "contribution_cadence_slope": CONTRIBUTION_CADENCE_SLOPE,
     "disruption_probability": DISRUPTION_PROBABILITY,
@@ -128,6 +160,14 @@ class Goal:
     target_date: datetime
     duration_days: int
     contributions: list[tuple[int, float]] = field(default_factory=list)  # (day_offset, amount)
+    # Cumulative progress at the end of each day — this is the goal's
+    # current_value. Tracked separately from `contributions` because the two can
+    # legitimately diverge: a user may update progress directly without linking a
+    # transaction, in which case current_value moves while the contribution log
+    # stays empty. Training on data where they were always identical taught the
+    # model that no contributions means no progress, so real goals tracked
+    # manually were scored at 0%.
+    cumulative_by_day: list[float] = field(default_factory=list)
     completed_day: int | None = None
 
     @property
@@ -167,6 +207,11 @@ def simulate_goal(rng: random.Random, goal: Goal, diligence: float, competing: i
     # feature reflected all of it: a severe train/serve mismatch that inverted the
     # predictions. Cadence still varies with diligence, so a sparse record remains
     # informative — it just means fewer contributions, not hidden ones.
+    if rng.random() < ABANDONED_GOAL_PROBABILITY:
+        goal.cumulative_by_day = [0.0] * goal.duration_days
+        return  # never acted on: no contributions, no progress, never completed
+
+    manually_tracked = rng.random() < MANUAL_TRACKING_PROBABILITY
     cadence = CONTRIBUTION_CADENCE_BASE + CONTRIBUTION_CADENCE_SLOPE * diligence
     expected_events = max(goal.duration_days * cadence, 1.0)
     base_amount = goal.target_value / expected_events
@@ -180,9 +225,12 @@ def simulate_goal(rng: random.Random, goal: Goal, diligence: float, competing: i
         effort = (EFFORT_INTERCEPT + EFFORT_DILIGENCE_SLOPE * diligence) * competition * category * decay
         if disrupted:
             effort *= DISRUPTION_EFFORT_MULTIPLIER
+        # Late push: grows quadratically toward the deadline.
+        effort *= 1.0 + SPRINT_STRENGTH * (day / goal.duration_days) ** 2
 
         # Does a contribution happen today at all?
         if rng.random() >= cadence * (DISRUPTION_EFFORT_MULTIPLIER if disrupted else 1.0):
+            goal.cumulative_by_day.append(cumulative)
             continue
 
         amount = base_amount * effort * rng.lognormvariate(0.0, 0.35)
@@ -191,6 +239,12 @@ def simulate_goal(rng: random.Random, goal: Goal, diligence: float, competing: i
 
         if goal.completed_day is None and cumulative >= goal.target_value:
             goal.completed_day = day
+        goal.cumulative_by_day.append(cumulative)
+
+    if manually_tracked:
+        # Progress happened and is reflected in current_value; it simply was not
+        # recorded as linked transactions.
+        goal.contributions = []
 
 
 def build_feature_row(goal: Goal, snapshot_day: int, user_prior_rate: float, competing: int) -> dict:
@@ -201,7 +255,10 @@ def build_feature_row(goal: Goal, snapshot_day: int, user_prior_rate: float, com
     nothing.
     """
     seen = [(d, a) for d, a in goal.contributions if d <= snapshot_day]
-    contributed = sum(a for _, a in seen)
+    # progress == current_value, which exists whether or not contributions were
+    # linked; contribution_count / days_since_last come from the log alone.
+    idx = min(snapshot_day, len(goal.cumulative_by_day) - 1)
+    contributed = goal.cumulative_by_day[idx] if goal.cumulative_by_day else 0.0
     days_elapsed = max(1, snapshot_day)
     days_remaining = max(0, goal.duration_days - snapshot_day)
 
@@ -263,7 +320,11 @@ def generate(users: int, seed: int) -> tuple[list[dict], dict]:
 
         for g in range(n_goals):
             category = rng.choice(CATEGORIES)
-            duration = rng.choice([30, 45, 60, 90, 120, 180])
+            # Sampled continuously across a wide span rather than from a handful
+            # of round values. Real goals run from a fortnight to well over a
+            # year; training on six fixed durations left duration_days covering
+            # [30, 180], so the serving guard rejected a real 330-day goal.
+            duration = rng.randint(MIN_DURATION_DAYS, MAX_DURATION_DAYS)
             # Target magnitudes differ wildly by category; log-uniform is closer
             # to how people actually set them than uniform.
             target = {
@@ -275,7 +336,10 @@ def generate(users: int, seed: int) -> tuple[list[dict], dict]:
             }[category]()
 
             competing = rng.randint(0, 5)
-            created = now - timedelta(days=rng.randint(duration + 5, 400))
+            # Far enough back that the goal has fully resolved by now, with varied
+            # recency. Was a fixed 400-day ceiling, which is empty once duration
+            # approaches it.
+            created = now - timedelta(days=rng.randint(duration + 5, duration + 200))
 
             goal = Goal(
                 goal_id=f"{user_id}-goal-{g:02d}",
@@ -288,9 +352,12 @@ def generate(users: int, seed: int) -> tuple[list[dict], dict]:
             )
             simulate_goal(rng, goal, diligence, competing)
 
-            # Predict partway through, not at the end. Varying the snapshot point
-            # stops the model keying on a single fixed horizon.
-            snapshot = int(duration * rng.uniform(0.25, 0.65))
+            # Predict partway through, not at the end. The snapshot spans nearly
+            # the whole goal life: a user opens the page whenever they like, so a
+            # narrow window (this was 0.25-0.65) leaves the model unable to score
+            # a goal three-quarters of the way through — which is exactly when
+            # someone most wants to know.
+            snapshot = max(1, int(duration * rng.uniform(*SNAPSHOT_WINDOW)))
 
             prior_rate = (sum(history) / len(history)) if history else 0.5
             row = build_feature_row(goal, snapshot, prior_rate, competing)

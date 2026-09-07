@@ -81,26 +81,25 @@ def test_completion_after_the_deadline_is_not_a_success():
 
 # ─── the contribution IS the record ──────────────────────────────────────────
 
-def test_completion_is_reachable_from_the_logged_record_alone():
-    """This application has no unrecorded progress: a goal's current_value only
-    moves when a linked transaction or session is logged, so the contribution and
-    the record are the same event.
+def test_progress_matches_the_contribution_log_when_linked():
+    """current_value is authoritative and always reflects real progress; the
+    contribution log reflects it too *whenever contributions were linked*.
 
-    An earlier draft modelled daily accrual with partial logging. That made the
-    training-time progress_ratio a fraction of true progress while the served
-    feature reflected all of it — a train/serve mismatch severe enough to invert
-    the predictions (a goal behind pace scored higher than one ahead of it).
+    An earlier draft modelled daily accrual with partial logging, so training-time
+    progress_ratio was a fraction of true progress while the served feature was
+    all of it — a train/serve mismatch severe enough to invert the predictions
+    (a goal behind pace scored higher than one ahead of it). Progress now comes
+    from cumulative_by_day in both paths; see the manual-tracking test below for
+    the case where the log is deliberately empty.
     """
-    rng = random.Random(3)
     goal = _goal(duration=120, target=1000.0)
-    gen.simulate_goal(rng, goal, diligence=0.85, competing=0)
+    gen.simulate_goal(random.Random(3), goal, diligence=0.85, competing=0)
 
-    assert goal.contributions, "a diligent user should contribute at least once"
-    logged_total = sum(a for _, a in goal.contributions)
-    if goal.completed_day is not None:
-        assert logged_total >= goal.target_value, (
-            "completion must be reachable from the logged record alone — otherwise "
-            "training features see less progress than the serving path does"
+    assert goal.cumulative_by_day, "progress series must always be populated"
+    if goal.contributions:  # linked-tracked rather than manual
+        logged_total = sum(a for _, a in goal.contributions)
+        assert abs(logged_total - goal.cumulative_by_day[-1]) < 1.0, (
+            "when contributions are linked, they must account for all progress"
         )
 
 
@@ -166,3 +165,42 @@ def test_category_effort_ordering_is_present():
 def test_features_are_non_negative(field):
     rows, _ = gen.generate(users=30, seed=5)
     assert all(r[field] >= 0 for r in rows)
+
+
+# ─── feature-space coverage ──────────────────────────────────────────────────
+# These guard the defect that only appeared on real data: the generator sampled
+# a narrow slice of the feature space, the serving guard then rejected anything
+# outside it, and three of four real goals came back "not enough comparable
+# history" instead of a probability.
+
+def test_duration_span_covers_long_goals():
+    """A real 330-day goal was rejected because durations were drawn from six
+    fixed values topping out at 180."""
+    rows, _ = gen.generate(users=80, seed=21)
+    durations = [r["duration_days"] for r in rows]
+    assert min(durations) <= 30, min(durations)
+    assert max(durations) >= 300, max(durations)
+
+
+def test_snapshot_spans_most_of_a_goals_life():
+    """Predictions were only ever taken between 25% and 65% through, so a goal
+    three quarters of the way in — exactly when someone wants to know — fell
+    outside the trained range."""
+    rows, _ = gen.generate(users=80, seed=22)
+    ratios = [r["time_elapsed_ratio"] for r in rows]
+    assert min(ratios) <= 0.12, min(ratios)
+    assert max(ratios) >= 0.85, max(ratios)
+
+
+def test_some_goals_have_progress_without_linked_contributions():
+    """Progress can be recorded directly on a goal rather than through linked
+    transactions. When training never showed that combination, the model read
+    every manually-tracked goal as abandoned and scored it near zero."""
+    rows, _ = gen.generate(users=100, seed=23)
+    manual = [r for r in rows if r["contribution_count"] == 0 and r["progress_ratio"] > 0.05]
+    assert manual, "no goals with progress but an empty contribution log"
+
+
+def test_some_goals_are_untouched():
+    rows, _ = gen.generate(users=100, seed=24)
+    assert any(r["contribution_count"] == 0 and r["progress_ratio"] == 0 for r in rows)
