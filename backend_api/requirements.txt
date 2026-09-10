@@ -1,3 +1,7 @@
+# requirements.txt — what the deployed app itself needs to run.
+# Training/eval scripts, benchmarks, and tests have their own extra
+# dependencies — see requirements-dev.txt for those.
+
 # ─── Web Framework ───────────────────────────────────────────────────────────
 fastapi==0.111.1
 uvicorn[standard]==0.30.1
@@ -12,6 +16,7 @@ beanie==1.26.0
 python-jose[cryptography]==3.3.0
 # passlib is deliberately NOT used — see core/security.py's docstring: passlib 1.7.4
 # is incompatible with bcrypt >= 4.x, so password hashing calls the bcrypt library directly.
+bcrypt==5.0.0
 
 # ─── Rate Limiting ────────────────────────────────────────────────────────────
 slowapi==0.1.9
@@ -20,6 +25,11 @@ slowapi==0.1.9
 pydantic==2.8.2
 pydantic-settings==2.4.0
 python-multipart==0.0.9
+# Pulled in by pydantic's EmailStr (models/user.py, schemas/auth_schema.py) —
+# not imported directly anywhere, so easy to drop by accident when trimming
+# "unused" imports. Without it, any request touching EmailStr raises at
+# validation time with an import error, not a clean 422.
+email-validator==2.3.0
 
 # ─── Utilities ────────────────────────────────────────────────────────────────
 python-dotenv==1.0.1
@@ -31,6 +41,15 @@ python-dotenv==1.0.1
 google-generativeai==0.8.3
 openai==1.51.2
 
-# ─── Testing (dev) ─────────────────────────────────────────────────────────────
-pytest==8.2.2
-pytest-asyncio==0.23.7
+# ─── ML serving (goal-completion model) ────────────────────────────────────────
+# services/goal_completion_service.py lazily `import joblib` to load
+# models_store/goal_completion.joblib at request time — a real runtime path
+# (GET /users/me/goals/predictions), not just a training-script concern.
+# scikit-learn and numpy aren't imported directly there, but the pickled
+# artifact is a fitted sklearn Pipeline (StandardScaler + LogisticRegression)
+# built on numpy arrays — joblib.load needs both installed to unpickle it, or
+# it fails at prediction time with an import error that pytest's mocked-DB
+# suite will never see, because it never loads the real artifact.
+joblib==1.4.2
+scikit-learn==1.5.0
+numpy==1.26.4

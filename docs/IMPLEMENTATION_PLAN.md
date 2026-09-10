@@ -137,7 +137,7 @@ Removes the "same twin for every user" defect without any ML.
   - `target_water_liters: Decimal = 2.0`
   - `screen_time_max_hours: Decimal = 6.0`
   - `study_session_benchmark_hours: Decimal = 2.0`
-  - `productivity_weights: dict = {attendance .30, focus .25, performance .25, hours .20}`
+  - `productivity_weights: dict = {focus .35, performance .35, hours .30}`
     (validated to sum to 1.0)
   - `parameter_source: EpistemicStatus = ASSUMED` → becomes `DECLARED` on user edit
 - [ ] **Replace the hardcoded constants with lookups** at these exact sites:

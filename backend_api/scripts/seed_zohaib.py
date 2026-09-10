@@ -108,15 +108,14 @@ new_goals = [
 db.users.update_one({"_id": USER_ID}, {"$set": {"active_goals": new_goals}})
 
 # ─── STUDY: 5 subjects, deliberately split into strong / weak performers ─────
-# subject: (attendance_range, focus_range, exam_start, exam_end) — exam trends
-# linearly from start -> end across the 70-day window (rising = positive subject,
-# falling = negative subject).
+# subject: (focus_range, exam_start, exam_end) — exam trends linearly from
+# start -> end across the 70-day window (rising = positive subject, falling = negative).
 SUBJECT_PROFILES = {
-    "Maths":     {"attendance": (92, 100), "focus": (78, 92), "exam": (65, 92)},   # improving
-    "Physics":   {"attendance": (85, 95),  "focus": (70, 82), "exam": (78, 82)},   # stable/good
-    "DSA":       {"attendance": (75, 90),  "focus": (55, 72), "exam": (60, 75)},   # mild improvement
-    "Chemistry": {"attendance": (60, 95),  "focus": (40, 80), "exam": (85, 52)},   # declining
-    "History":   {"attendance": (50, 68),  "focus": (28, 46), "exam": (38, 56)},   # weak throughout
+    "Maths":     {"focus": (78, 92), "exam": (65, 92)},   # improving
+    "Physics":   {"focus": (70, 82), "exam": (78, 82)},   # stable/good
+    "DSA":       {"focus": (55, 72), "exam": (60, 75)},   # mild improvement
+    "Chemistry": {"focus": (40, 80), "exam": (85, 52)},   # declining
+    "History":   {"focus": (28, 46), "exam": (38, 56)},   # weak throughout
 }
 SESSION_TYPES = ["DEEP_WORK", "REVIEW", "LECTURE", "PRACTICE_EXAM", "ASSIGNMENT", "RESEARCH"]
 
@@ -128,11 +127,9 @@ for day_offset in range(WINDOW_DAYS, -1, -1):
     if random.random() < 0.65:
         subject = random.choice(list(SUBJECT_PROFILES.keys()))
         prof = SUBJECT_PROFILES[subject]
-        att_lo, att_hi = prof["attendance"]
         foc_lo, foc_hi = prof["focus"]
         exam_start, exam_end = prof["exam"]
 
-        attendance = att_lo + (att_hi - att_lo) * progress + random.uniform(-3, 3)
         focus = foc_lo + (foc_hi - foc_lo) * progress + random.uniform(-4, 4)
         hours = round(random.uniform(1, 3.5), 1)
         has_exam = random.random() < 0.25
@@ -141,7 +138,6 @@ for day_offset in range(WINDOW_DAYS, -1, -1):
         doc = {
             "user_id": USER_ID, "subject": subject, "study_hours": D(hours),
             "session_type": random.choice(SESSION_TYPES),
-            "attendance_pct": D(max(0, min(100, attendance))),
             "quiz_marks": None, "max_quiz_marks": None, "quiz_marks_pct": None,
             "exam_marks": None, "max_exam_marks": None, "exam_marks_pct": None,
             "focus_score": int(max(0, min(100, focus))),

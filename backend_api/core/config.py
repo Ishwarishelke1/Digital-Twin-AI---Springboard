@@ -44,8 +44,15 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
 
     # The `access_token` cookie's Secure flag — must be True behind real HTTPS.
-    # False is correct for local HTTP dev (mirrors is_production's NODE_ENV switch).
-    COOKIE_SECURE: bool = False
+    # Left unset (None) by default so it *follows* NODE_ENV rather than needing
+    # to be remembered as a second, independent variable — see `cookie_secure`
+    # below. A deploy that sets NODE_ENV=production is verified (Docker/Phase 0
+    # of docs/TEST_PLAN.md) to hide /api/docs and engage require_non_production();
+    # before this became a computed default, that same deploy shipped the auth
+    # cookie with no Secure flag unless COOKIE_SECURE=true was *also* set by
+    # hand — one flag doing its job while a second, easy-to-forget one silently
+    # didn't. Still overridable explicitly (e.g. an internal non-HTTPS prod).
+    COOKIE_SECURE: Optional[bool] = None
 
     @field_validator("JWT_SECRET_KEY")
     @classmethod
@@ -82,6 +89,12 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.NODE_ENV == "production"
+
+    @property
+    def cookie_secure(self) -> bool:
+        """Effective value for the auth cookie's Secure flag: the explicit
+        COOKIE_SECURE override when set, otherwise whatever is_production says."""
+        return self.COOKIE_SECURE if self.COOKIE_SECURE is not None else self.is_production
 
 
 @lru_cache()

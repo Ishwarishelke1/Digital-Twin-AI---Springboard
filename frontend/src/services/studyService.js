@@ -19,7 +19,7 @@ export const getSessions = async (params = {}) => {
 /**
  * Log a new study session.
  * POST /api/v1/study/sessions
- * @param {{ subject, study_hours, session_type, attendance_pct?, session_date? }} payload
+ * @param {{ subject, study_hours, session_type, session_date? }} payload
  * @returns {Promise<StudyRecordResponse>}
  */
 export const createSession = async (payload) => {

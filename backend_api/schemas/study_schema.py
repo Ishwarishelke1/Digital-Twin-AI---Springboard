@@ -18,7 +18,6 @@ class StudyCreateRequest(BaseModel):
     subject: str = Field(..., max_length=100)
     study_hours: Decimal = Field(..., ge=Decimal("0.1"), le=Decimal("24.0"))
     session_type: SessionType
-    attendance_pct: Decimal = Field(default=Decimal("100.0"), ge=0, le=100)
 
     quiz_marks: Optional[Decimal] = None
     max_quiz_marks: Optional[Decimal] = None
@@ -44,7 +43,6 @@ class StudyUpdateRequest(BaseModel):
     subject: Optional[str] = Field(default=None, max_length=100)
     study_hours: Optional[Decimal] = Field(default=None, ge=Decimal("0.1"), le=Decimal("24.0"))
     session_type: Optional[SessionType] = None
-    attendance_pct: Optional[Decimal] = Field(default=None, ge=0, le=100)
 
     quiz_marks: Optional[Decimal] = None
     max_quiz_marks: Optional[Decimal] = None
@@ -70,7 +68,6 @@ class StudyRecordResponse(BaseModel):
     subject: str
     study_hours: Decimal
     session_type: SessionType
-    attendance_pct: Decimal
     quiz_marks: Optional[Decimal]
     max_quiz_marks: Optional[Decimal]
     quiz_marks_pct: Optional[Decimal]       # Auto-computed
@@ -95,7 +92,7 @@ class SubjectPerformanceSummary(BaseModel):
     """Aggregated subject-level summary for dashboard & ML pipelines."""
     subject: str
     total_study_hours: Decimal
-    average_attendance_pct: float
-    average_quiz_pct: float
-    average_exam_pct: float
+    average_quiz_pct: Optional[float] = None
+    average_exam_pct: Optional[float] = None
     session_count: int
+    last_session_date: Optional[datetime] = None

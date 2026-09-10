@@ -15,6 +15,7 @@ from beanie import PydanticObjectId
 
 from core.exceptions import BusinessRuleError, NotFoundError
 from models.study import StudyActivity
+from models.enums import SessionType
 from schemas.study_schema import (
     StudyCreateRequest,
     StudyUpdateRequest,
@@ -45,7 +46,6 @@ def _to_response(record: StudyActivity) -> StudyRecordResponse:
         subject=record.subject,
         study_hours=record.study_hours,
         session_type=record.session_type,
-        attendance_pct=record.attendance_pct,
         quiz_marks=record.quiz_marks,
         max_quiz_marks=record.max_quiz_marks,
         quiz_marks_pct=record.quiz_marks_pct,
@@ -72,7 +72,6 @@ async def log_study_session(
         subject=payload.subject,
         study_hours=payload.study_hours,
         session_type=payload.session_type,
-        attendance_pct=payload.attendance_pct,
         quiz_marks=payload.quiz_marks,
         max_quiz_marks=payload.max_quiz_marks,
         exam_marks=payload.exam_marks,
@@ -181,6 +180,7 @@ async def list_sessions(
     page: int = 1,
     limit: int = 20,
     subject_filter: Optional[str] = None,
+    session_type_filter: Optional[SessionType] = None,
 ) -> PaginatedStudyResponse:
     """
     Paginated study history. Uses idx_study_user_date ESR index (user_id + session_date desc).
@@ -192,6 +192,8 @@ async def list_sessions(
             "$regex": f"^{re.escape(subject_filter)}$",
             "$options": "i",
     }
+    if session_type_filter:
+        query_filter["session_type"] = session_type_filter
 
     skip = (page - 1) * limit
     records = await StudyActivity.find(
@@ -212,6 +214,14 @@ async def list_sessions(
     )
 
 
+def _optional_pct(value) -> Optional[float]:
+    """$avg returns None when no session in the group recorded the field. That stays
+    None rather than becoming 0.0: a subject where nobody has sat an exam and a
+    subject where everybody scored zero are different facts, and a caller that sees
+    0.0 for both cannot tell them apart."""
+    return None if value is None else round(float(str(value)), 2)
+
+
 async def get_subject_performance(
     user_id: str,
     start_date: Optional[datetime] = None,
@@ -230,9 +240,9 @@ async def get_subject_performance(
         {"$group": {
             "_id": "$subject",
             "total_study_hours":    {"$sum": "$study_hours"},
-            "average_attendance_pct": {"$avg": "$attendance_pct"},
             "average_quiz_pct":     {"$avg": "$quiz_marks_pct"},
             "average_exam_pct":     {"$avg": "$exam_marks_pct"},
+            "last_session_date":    {"$max": "$session_date"},
             "session_count":        {"$sum": 1},
         }},
         {"$sort": {"total_study_hours": -1}},
@@ -243,10 +253,10 @@ async def get_subject_performance(
         SubjectPerformanceSummary(
             subject=r["_id"],
             total_study_hours=Decimal(str(r.get("total_study_hours") or 0)),
-            average_attendance_pct=round(float(str(r.get("average_attendance_pct") or 0)), 2),
-            average_quiz_pct=round(float(str(r.get("average_quiz_pct") or 0)), 2),
-            average_exam_pct=round(float(str(r.get("average_exam_pct") or 0)), 2),
+            average_quiz_pct=_optional_pct(r.get("average_quiz_pct")),
+            average_exam_pct=_optional_pct(r.get("average_exam_pct")),
             session_count=r["session_count"],
+            last_session_date=r.get("last_session_date"),
         )
         for r in results
     ]

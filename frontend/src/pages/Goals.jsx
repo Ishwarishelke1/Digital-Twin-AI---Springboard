@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 
 import GoalCard from "../components/GoalCard";
@@ -21,11 +22,106 @@ import { useAuth } from "../context/useAuth";
  * a goal added/edited/deleted here shows up there immediately instead of
  * only after the next login.
  */
+/* Goals arrive in the order they were created, which mixes a savings target in
+ * between two study goals for no reason a reader can see. Grouping by category
+ * puts everything about one part of your life together. Anything outside this
+ * list sorts after it rather than being dropped, so a category added later still
+ * appears — at the end, until it is given a place here.
+ *
+ * Within a category, the nearest deadline comes first: it is the goal most
+ * likely to need attention, and undated goals sort last rather than to 1970. */
+const CATEGORY_ORDER = ["FINANCE", "HABIT", "STUDY", "FITNESS", "CAREER"];
+
+function sortGoals(goals) {
+  return [...goals].sort((a, b) => {
+    const categoryDiff =
+      (CATEGORY_ORDER.indexOf(a.category) + 1 || CATEGORY_ORDER.length + 1) -
+      (CATEGORY_ORDER.indexOf(b.category) + 1 || CATEGORY_ORDER.length + 1);
+    if (categoryDiff !== 0) return categoryDiff;
+
+    const aDate = a.target_date ? new Date(a.target_date).getTime() : Infinity;
+    const bDate = b.target_date ? new Date(b.target_date).getTime() : Infinity;
+    if (aDate !== bDate) return aDate - bDate;
+
+    return (a.title ?? "").localeCompare(b.title ?? "");
+  });
+}
+
+const CATEGORY_LABELS = {
+  FINANCE: "Finance",
+  HABIT: "Habits",
+  STUDY: "Study",
+  FITNESS: "Fitness",
+  CAREER: "Career",
+};
+
+/* Groups consecutive runs rather than bucketing by category, so the headings can
+ * only ever agree with sortGoals above — re-deriving an order here would give the
+ * page two sources of truth about what comes first. An unrecognised category
+ * still gets a run, labelled with its raw value. */
+function groupByCategory(goals) {
+  return goals.reduce((groups, goal) => {
+    const last = groups[groups.length - 1];
+    if (last && last.category === goal.category) last.goals.push(goal);
+    else groups.push({ category: goal.category, goals: [goal] });
+    return groups;
+  }, []);
+}
+
+/** One labelled run of goal cards per category. */
+function GoalGroups({ goals, completed = false, predictions, onEdit, onDelete }) {
+  return (
+    <div className="flex flex-col gap-6">
+      {groupByCategory(goals).map(({ category, goals: groupGoals }) => (
+        <div key={category}>
+          <p className="mb-3 font-mono text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+            {CATEGORY_LABELS[category] ?? category}
+            <span className="ml-2 font-sans normal-case tracking-normal">
+              {groupGoals.length}
+            </span>
+          </p>
+
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {groupGoals.map((g) => (
+              <GoalCard
+                key={g.goal_id}
+                title={g.title}
+                value={`${Number(g.current_value).toLocaleString()} / ${Number(g.target_value).toLocaleString()} ${g.unit}`}
+                completed={completed}
+                targetDate={g.target_date}
+                prediction={predictions[g.goal_id]}
+                onEdit={() => onEdit(g)}
+                onDelete={() => onDelete(g.goal_id)}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Goals() {
   const { user, refreshUser } = useAuth();
-  const [addingGoal, setAddingGoal] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  /* Arriving from a domain page's "Add a goal" tile opens the form straight
+   * away — landing on a list and hunting for a button would undo the point of
+   * the tile. Both values are read once, in a state initialiser, so clearing the
+   * query string below cannot close a form the user is still filling in. */
+  const [addingGoal, setAddingGoal] = useState(() => searchParams.get("new") === "1");
+  const [presetCategory] = useState(() => searchParams.get("category") || undefined);
   const [editingGoal, setEditingGoal] = useState(null);
   const [confirmDeleteGoalId, setConfirmDeleteGoalId] = useState(null);
+
+  useEffect(() => {
+    // Consume the deep-link params. Replaces rather than pushes, so Back still
+    // returns to the page the user came from instead of re-triggering the form.
+    if (searchParams.has("new") || searchParams.has("category")) {
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Keyed by goal_id. Fetched separately from the user payload: predictions need
   // the model loaded and a per-goal feature build, so a failure here must leave
   // the goals rendering rather than take the page down.
@@ -88,8 +184,8 @@ function Goals() {
   };
 
   const goals = user?.active_goals ?? [];
-  const activeGoals = goals.filter((g) => g.status !== "COMPLETED");
-  const completedGoals = goals.filter((g) => g.status === "COMPLETED");
+  const activeGoals = sortGoals(goals.filter((g) => g.status !== "COMPLETED"));
+  const completedGoals = sortGoals(goals.filter((g) => g.status === "COMPLETED"));
 
   return (
     <div>
@@ -107,27 +203,24 @@ function Goals() {
       </div>
 
       {addingGoal && (
-        <div className="mb-6">
-          <GoalForm onSave={handleAddGoal} onCancel={() => setAddingGoal(false)} />
+        <div className="@container mb-6 rounded-2xl bg-white p-6 shadow-sm dark:bg-slate-800">
+          <GoalForm
+            onSave={handleAddGoal}
+            onCancel={() => setAddingGoal(false)}
+            defaultCategory={presetCategory}
+          />
         </div>
       )}
 
       <section className="mb-8">
         <h3 className="mb-4 text-lg font-semibold text-slate-800 dark:text-slate-100">Active Goals</h3>
         {activeGoals.length > 0 ? (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {activeGoals.map((g) => (
-              <GoalCard
-                key={g.goal_id}
-                title={g.title}
-                value={`${Number(g.current_value).toLocaleString()} / ${Number(g.target_value).toLocaleString()} ${g.unit}`}
-                targetDate={g.target_date}
-                prediction={predictions[g.goal_id]}
-                onEdit={() => startEditGoal(g)}
-                onDelete={() => handleDeleteGoal(g.goal_id)}
-              />
-            ))}
-          </div>
+          <GoalGroups
+            goals={activeGoals}
+            predictions={predictions}
+            onEdit={startEditGoal}
+            onDelete={handleDeleteGoal}
+          />
         ) : (
           <EmptyState title="No active goals" message="Add a goal above to start tracking progress toward it." />
         )}
@@ -136,20 +229,13 @@ function Goals() {
       <section>
         <h3 className="mb-4 text-lg font-semibold text-slate-800 dark:text-slate-100">Completed Goals</h3>
         {completedGoals.length > 0 ? (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {completedGoals.map((g) => (
-              <GoalCard
-                key={g.goal_id}
-                title={g.title}
-                value={`${Number(g.current_value).toLocaleString()} / ${Number(g.target_value).toLocaleString()} ${g.unit}`}
-                completed
-                targetDate={g.target_date}
-                prediction={predictions[g.goal_id]}
-                onEdit={() => startEditGoal(g)}
-                onDelete={() => handleDeleteGoal(g.goal_id)}
-              />
-            ))}
-          </div>
+          <GoalGroups
+            goals={completedGoals}
+            completed
+            predictions={predictions}
+            onEdit={startEditGoal}
+            onDelete={handleDeleteGoal}
+          />
         ) : (
           <EmptyState title="No completed goals yet" message="Goals move here automatically once you reach their target." />
         )}

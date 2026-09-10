@@ -339,7 +339,7 @@ h("PHASE 6 - STUDY SESSIONS")
 
 r = requests.post(f"{API}/study/sessions", headers=auth_headers(), json={
     "subject": "Mathematics", "study_hours": 2.5,
-    "session_type": "DEEP_WORK", "attendance_pct": 100.0
+    "session_type": "DEEP_WORK"
 })
 check("POST /study/sessions - valid session -> 201", r, 201,
       lambda b: b["subject"] == "Mathematics" and float(b["study_hours"]) == 2.5 and "id" in b)
@@ -640,7 +640,7 @@ r = requests.post(f"{API}/study/sessions", headers=auth_headers(), json={
 if r.status_code == 201:
     b = r.json()
     required = ["id", "user_id", "subject", "study_hours", "session_type",
-                "attendance_pct", "session_date", "created_at"]
+                "session_date", "created_at"]
     missing = [f for f in required if f not in b]
     if missing:
         fail(f"RESPONSE FORMAT - study record missing: {missing}", severity="MEDIUM")

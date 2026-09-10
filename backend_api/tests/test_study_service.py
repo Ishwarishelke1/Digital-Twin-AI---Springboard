@@ -134,13 +134,47 @@ async def test_log_study_session_auto_computes_quiz_percentage():
     assert result.quiz_marks_pct == Decimal("90.00")
 
 
+def test_clearing_quiz_marks_clears_the_computed_percentage():
+    """The UI hides the quiz fields on any session type other than Practice Exam and
+    sends an explicit null when it does. If the percentage survived that, a deleted
+    score would go on feeding the subject-performance averages."""
+    record = StudyActivity.model_construct(
+        subject="CS", study_hours=Decimal("3.0"), session_type=SessionType.PRACTICE_EXAM,
+        quiz_marks=Decimal("18"), max_quiz_marks=Decimal("20"), quiz_marks_pct=Decimal("90.00"),
+        exam_marks=None, max_exam_marks=None, exam_marks_pct=None,
+    )
+
+    record.quiz_marks = None
+    record.max_quiz_marks = None
+    record.compute_percentage_scores()
+
+    assert record.quiz_marks_pct is None
+
+
+def test_exam_percentage_is_recomputed_not_stale():
+    """Editing the marks must move the percentage with them, in both directions."""
+    record = StudyActivity.model_construct(
+        subject="CS", study_hours=Decimal("3.0"), session_type=SessionType.PRACTICE_EXAM,
+        quiz_marks=None, max_quiz_marks=None, quiz_marks_pct=None,
+        exam_marks=Decimal("40"), max_exam_marks=Decimal("50"), exam_marks_pct=Decimal("80.00"),
+    )
+
+    record.exam_marks = Decimal("45")
+    record.compute_percentage_scores()
+    assert record.exam_marks_pct == Decimal("90.00")
+
+    record.exam_marks = None
+    record.compute_percentage_scores()
+    assert record.exam_marks_pct is None
+
+
 # ─── update_session ──────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_update_session_normal_case():
     record = StudyActivity.model_construct(
         user_id=PydanticObjectId(USER_ID), subject="Mathematics", study_hours=Decimal("2.0"),
-        session_type=SessionType.DEEP_WORK, attendance_pct=Decimal("100"),
+        session_type=SessionType.DEEP_WORK,
         quiz_marks=None, max_quiz_marks=None, quiz_marks_pct=None,
         exam_marks=None, max_exam_marks=None, exam_marks_pct=None,
         focus_score=None, linked_goal_id=None,
@@ -161,7 +195,7 @@ async def test_update_session_normal_case():
 async def test_update_session_relinking_goal_moves_the_flat_progress():
     record = StudyActivity.model_construct(
         user_id=PydanticObjectId(USER_ID), subject="Mathematics", study_hours=Decimal("2.0"),
-        session_type=SessionType.DEEP_WORK, attendance_pct=Decimal("100"),
+        session_type=SessionType.DEEP_WORK,
         quiz_marks=None, max_quiz_marks=None, quiz_marks_pct=None,
         exam_marks=None, max_exam_marks=None, exam_marks_pct=None,
         focus_score=None, linked_goal_id=GOAL_ID,
@@ -193,7 +227,7 @@ async def test_update_session_editing_hours_without_changing_goal_link_leaves_pr
     unrelated field on an already-linked session shouldn't add another +1."""
     record = StudyActivity.model_construct(
         user_id=PydanticObjectId(USER_ID), subject="Mathematics", study_hours=Decimal("2.0"),
-        session_type=SessionType.DEEP_WORK, attendance_pct=Decimal("100"),
+        session_type=SessionType.DEEP_WORK,
         quiz_marks=None, max_quiz_marks=None, quiz_marks_pct=None,
         exam_marks=None, max_exam_marks=None, exam_marks_pct=None,
         focus_score=None, linked_goal_id=GOAL_ID,
@@ -216,7 +250,7 @@ async def test_update_session_editing_hours_without_changing_goal_link_leaves_pr
 async def test_update_session_rejects_quiz_marks_without_max_on_merged_record():
     record = StudyActivity.model_construct(
         user_id=PydanticObjectId(USER_ID), subject="Mathematics", study_hours=Decimal("2.0"),
-        session_type=SessionType.DEEP_WORK, attendance_pct=Decimal("100"),
+        session_type=SessionType.DEEP_WORK,
         quiz_marks=None, max_quiz_marks=None, quiz_marks_pct=None,
         exam_marks=None, max_exam_marks=None, exam_marks_pct=None,
         focus_score=None, linked_goal_id=None,
@@ -239,7 +273,7 @@ async def test_update_session_allows_quiz_marks_when_max_already_set_on_record()
     because it could only see the PATCH payload, not the existing record."""
     record = StudyActivity.model_construct(
         user_id=PydanticObjectId(USER_ID), subject="Mathematics", study_hours=Decimal("2.0"),
-        session_type=SessionType.DEEP_WORK, attendance_pct=Decimal("100"),
+        session_type=SessionType.DEEP_WORK,
         quiz_marks=None, max_quiz_marks=Decimal("100"), quiz_marks_pct=None,
         exam_marks=None, max_exam_marks=None, exam_marks_pct=None,
         focus_score=None, linked_goal_id=None,
@@ -346,13 +380,54 @@ async def test_list_sessions_subject_filter_reaches_query():
     assert captured["filter"]["subject"] == {"$regex": "^Physics$", "$options": "i"}
 
 
+def _capture_find(store):
+    def fake_find(query_filter, **kwargs):
+        store["filter"] = query_filter
+        query = MagicMock()
+        query.to_list = AsyncMock(return_value=[])
+        query.count = AsyncMock(return_value=0)
+        return query
+    return fake_find
+
+
+@pytest.mark.asyncio
+async def test_list_sessions_session_type_filter_reaches_query():
+    captured = {}
+    with patch.object(StudyActivity, "find", side_effect=_capture_find(captured)):
+        await study_service.list_sessions(USER_ID, session_type_filter=SessionType.PRACTICE_EXAM)
+    assert captured["filter"]["session_type"] == SessionType.PRACTICE_EXAM
+
+
+@pytest.mark.asyncio
+async def test_list_sessions_combines_both_filters():
+    """The two filters narrow together rather than one replacing the other — the
+    table offers both at once, so a subject picked alongside a type must AND."""
+    captured = {}
+    with patch.object(StudyActivity, "find", side_effect=_capture_find(captured)):
+        await study_service.list_sessions(
+            USER_ID, subject_filter="Physics", session_type_filter=SessionType.LECTURE
+        )
+    assert captured["filter"]["subject"] == {"$regex": "^Physics$", "$options": "i"}
+    assert captured["filter"]["session_type"] == SessionType.LECTURE
+    assert captured["filter"]["user_id"] == PydanticObjectId(USER_ID)
+
+
+@pytest.mark.asyncio
+async def test_list_sessions_without_filters_scopes_to_the_user_only():
+    captured = {}
+    with patch.object(StudyActivity, "find", side_effect=_capture_find(captured)):
+        await study_service.list_sessions(USER_ID)
+    assert captured["filter"] == {"user_id": PydanticObjectId(USER_ID)}
+
+
 # ─── get_subject_performance ──────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_get_subject_performance_maps_aggregation_results():
+    last_seen = datetime(2026, 9, 1, tzinfo=timezone.utc)
     raw_results = [
-        {"_id": "Mathematics", "total_study_hours": 12.5, "average_attendance_pct": 95.0,
-         "average_quiz_pct": 80.0, "average_exam_pct": None, "session_count": 5},
+        {"_id": "Mathematics", "total_study_hours": 12.5, "average_quiz_pct": 80.0,
+         "average_exam_pct": None, "session_count": 5, "last_session_date": last_seen},
     ]
     mock_cursor = MagicMock()
     mock_cursor.to_list = AsyncMock(return_value=raw_results)
@@ -361,4 +436,24 @@ async def test_get_subject_performance_maps_aggregation_results():
         items = await study_service.get_subject_performance(USER_ID)
     assert items[0].subject == "Mathematics"
     assert items[0].session_count == 5
-    assert items[0].average_exam_pct == 0.0  # None -> 0, not a crash
+    assert items[0].total_study_hours == Decimal("12.5")
+    assert items[0].last_session_date == last_seen
+    assert items[0].average_quiz_pct == 80.0
+    # A subject nobody has sat an exam in reports None, not 0.0 — otherwise it is
+    # indistinguishable from a subject where everybody scored zero.
+    assert items[0].average_exam_pct is None
+
+
+@pytest.mark.asyncio
+async def test_get_subject_performance_survives_a_missing_last_session_date():
+    """Documents aggregated before last_session_date was added carry no such key."""
+    raw_results = [
+        {"_id": "History", "total_study_hours": 3.0, "average_quiz_pct": None,
+         "average_exam_pct": None, "session_count": 2},
+    ]
+    mock_cursor = MagicMock()
+    mock_cursor.to_list = AsyncMock(return_value=raw_results)
+
+    with patch.object(StudyActivity, "aggregate", return_value=mock_cursor):
+        items = await study_service.get_subject_performance(USER_ID)
+    assert items[0].last_session_date is None

@@ -9,12 +9,18 @@ import { getApiErrorMessage } from "../utils/apiError";
  * `initialData`/`onUpdate` are supplied (same convention as StudyForm/TransactionForm).
  * Maps to POST /api/v1/users/me/goals (create) or PATCH /api/v1/users/me/goals/{id} (edit).
  */
-function GoalForm({ onSave, initialData = null, onUpdate = null, onCancel = null }) {
+function GoalForm({
+  onSave, initialData = null, onUpdate = null, onCancel = null,
+  defaultCategory = "FINANCE",
+}) {
 
   const [formData, setFormData] = useState(
     initialData || {
       title: "",
-      category: "FINANCE",
+      // Preset when the form was opened from a domain page's "Add a goal" tile,
+      // so someone coming from Habits does not land on a finance goal. Kept out
+      // of `initialData`, which is what puts the form into edit mode.
+      category: defaultCategory,
       target_value: "",
       unit: "",
       target_date: "",
@@ -84,20 +90,33 @@ function GoalForm({ onSave, initialData = null, onUpdate = null, onCancel = null
   }
 
   return (
-    <form className="rounded-2xl bg-white dark:bg-slate-800 p-6 shadow-sm" onSubmit={submit}>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <form onSubmit={submit}>
+      {/* Same shape as Finance's TransactionForm: one dense row of fields on a
+          wide container, two up on a narrow one, collapsing to a stack on a
+          phone. Container queries, not viewport breakpoints, because this form
+          renders inline on the Goals page and inside a Modal when editing — the
+          space it has is its container's, not the window's. */}
+      <div className="grid grid-cols-1 gap-4 @sm:grid-cols-2 @lg:grid-cols-5">
 
         <Input
+          type="text"
           name="title"
+          placeholder="Goal Title"
           value={formData.title}
           onChange={handleChange}
-          placeholder="Goal Title"
           error={fieldErrors.title}
           required
         />
 
-        <Select name="category" value={formData.category} onChange={handleChange}>
+        <Select
+          name="category"
+          value={formData.category}
+          onChange={handleChange}
+          required
+        >
+          <option value="" disabled>
+            Select Category
+          </option>
           <option value="FINANCE">Finance</option>
           <option value="STUDY">Study</option>
           <option value="HABIT">Habit</option>
@@ -106,50 +125,53 @@ function GoalForm({ onSave, initialData = null, onUpdate = null, onCancel = null
         </Select>
 
         <Input
-          name="target_value"
           type="number"
+          name="target_value"
+          placeholder="Target Value"
           min="0.01"
           step="0.01"
           value={formData.target_value}
           onChange={handleChange}
-          placeholder="Target Value"
           error={fieldErrors.target_value}
           required
         />
 
-        {initialData && (
-          <Input
-            name="current_value"
-            type="number"
-            min="0"
-            step="0.01"
-            value={formData.current_value ?? ""}
-            onChange={handleChange}
-            placeholder="Current Value"
-          />
-        )}
-
         <Input
+          type="text"
           name="unit"
+          placeholder="Unit (e.g. USD, hours)"
           value={formData.unit}
           onChange={handleChange}
-          placeholder="Unit (e.g. USD, hours)"
           error={fieldErrors.unit}
           required
         />
 
         <Input
-          name="target_date"
           type="date"
+          name="target_date"
           value={formData.target_date}
           onChange={handleChange}
           error={fieldErrors.target_date}
           required
         />
 
+        {/* Only offered when editing — on a new goal there is no progress to
+            correct, and a create payload has no current_value field at all. */}
+        {initialData && (
+          <Input
+            type="number"
+            name="current_value"
+            placeholder="Current Value"
+            min="0"
+            step="0.01"
+            value={formData.current_value ?? ""}
+            onChange={handleChange}
+          />
+        )}
+
       </div>
 
-      <div className="mt-6 flex gap-3">
+      <div className="mt-4 flex flex-wrap gap-3">
 
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Saving..." : initialData ? "Update Goal" : "Add Goal"}

@@ -114,3 +114,17 @@ class UserFeedback(str, Enum):
     IRRELEVANT = "IRRELEVANT"
 
 
+class RecommendationDomain(str, Enum):
+    """Which page a cached AI recommendation set belongs to."""
+    HABITS = "HABITS"
+    STUDY = "STUDY"
+
+
+class SleepBand(str, Enum):
+    """Sleep filter buckets for the habit history table. The boundaries are
+    habit_analytics_service.SLEEP_HEALTHY_RANGE — imported, never re-typed, so the
+    table and the analytics engine cannot end up disagreeing about what counts as
+    a healthy night."""
+    BELOW = "BELOW"
+    HEALTHY = "HEALTHY"
+    ABOVE = "ABOVE"

@@ -54,7 +54,28 @@ cd frontend && npx eslint . && npx vite build # lint + build check
 
 Backend tests run with **zero live database connection**. `tests/conftest.py` calls `init_beanie()` once against a lazily-constructed, never-actually-connected Motor client — this only registers Beanie's class-level query metadata (needed for `Model.field == value` expressions used internally by some services); every test still mocks the actual I/O calls (`.find`/`.find_one`/`.insert`/`.get`/`.aggregate`/`get_motor_collection`) individually. Follow this pattern for new service tests — don't add a real DB dependency.
 
-There is no frontend test suite yet.
+**`tests_integration/` is a second, deliberately separate suite** — real HTTP requests through the real FastAPI app (via `httpx.AsyncClient` + `ASGITransport`, no live uvicorn process needed) against a real, disposable, **local-only** MongoDB (`mongodb://localhost:27017`, database `digital_twin_ai_contract_sweep_test` — never the Atlas cluster in `.env`, and dropped before every test function so tests can't see each other's data). This exists because the mocked-DB unit suite structurally cannot catch a broken query, a wrong response shape, or a real cross-tenant data leak — see `docs/TEST_PLAN.md`'s Phase 1 for what it's proving and why. `pytest.ini`'s `testpaths = tests` keeps a bare `pytest` from picking this up by accident (it needs a reachable local Mongo and takes ~30s, vs. ~16s for the whole unit suite):
+
+```bash
+brew services start mongodb-community   # or: docker run -d -p 27017:27017 mongo:7
+cd backend_api && python3 -m pytest tests_integration/ -q
+```
+
+Follow this pattern for anything that needs to exercise real routing/response-shape/cross-tenant behaviour rather than a single service function — not by adding a real DB dependency to `tests/`.
+
+**`frontend/tests_e2e/` is a Playwright suite** — a real browser against the real
+built app, real seeded data, both themes. Covers what neither backend suite can:
+a page that renders while silently throwing in the console looks identical to a
+clean one at every other layer. See `frontend/tests_e2e/README.md` for exact run
+instructions (it needs a backend running against a seeded local database, and
+`npx playwright install` or the cached-Chromium `CHROME_EXE` override — a plain
+`npm run dev`/`pip install` does not pull this in). `playwright.config.js` and
+`tests_e2e/**` run under Node, not the browser+React ESLint config the rest of
+`frontend/` uses — see `eslint.config.js`'s second block for why (Playwright's
+own `use` fixture parameter false-positives against `eslint-plugin-react-hooks`'
+naming heuristic otherwise). Dark mode here is not `prefers-color-scheme` —
+Playwright's `colorScheme` emulation does nothing; see `tests_e2e/fixtures.js`'s
+`setTheme` for how theme testing actually works in this app.
 
 ## Known gaps (deliberately not fixed, see conversation history for context)
 

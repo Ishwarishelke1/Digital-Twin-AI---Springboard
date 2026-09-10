@@ -37,8 +37,8 @@ async def get_productivity_score(
     current_user: CurrentUser,
     lookback_days: int = Query(default=30, ge=1, le=365),
 ) -> ProductivityScoreResponse:
-    """Returns a 0-100 composite score derived from attendance, focus, quiz/exam
-    performance, and study-hours consistency across the requested window."""
+    """Returns a 0-100 composite score derived from focus, quiz/exam performance,
+    and study-hours consistency across the requested window."""
     return await productivity_service.get_productivity_score(str(current_user.id), lookback_days)
 
 
@@ -51,8 +51,8 @@ async def get_focus_score(
     current_user: CurrentUser,
     lookback_days: int = Query(default=30, ge=1, le=365),
 ) -> FocusScoreResponse:
-    """Averages recorded session focus_score values; falls back to an attendance-based
-    proxy when no session in the window has focus_score recorded."""
+    """Averages recorded session focus_score values; reports insufficient_data when
+    no session in the window has focus_score recorded."""
     return await productivity_service.get_focus_score(str(current_user.id), lookback_days)
 
 

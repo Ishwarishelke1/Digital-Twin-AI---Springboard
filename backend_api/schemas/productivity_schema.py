@@ -20,7 +20,6 @@ class AnalyticsMethod(str, Enum):
     MOVING_AVERAGE = "moving_average"
     LINEAR_REGRESSION = "linear_regression"
     RECORDED_AVERAGE = "recorded_average"
-    ATTENDANCE_PROXY = "attendance_proxy"
 
 
 class WeeklyTrendPoint(BaseModel):

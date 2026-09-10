@@ -8,6 +8,7 @@ look for them.
 | File | Covers | Describes |
 | :--- | :--- | :--- |
 | [`CAPSTONE_REPORT.md`](CAPSTONE_REPORT.md) | The project written up end to end: architecture, both ML models, results, the defects found, limitations | Current state |
+| [`TEST_PLAN.md`](TEST_PLAN.md) | A plan to test every module, route, page and collection — and the deployability verdict it exists to establish | **Phase 0 done, Phases 1–3 in progress** |
 | [`REMEDIATION_PLAN.md`](REMEDIATION_PLAN.md) | Defects found by auditing the codebase, and how each was fixed | Current state |
 | [`SKILLS.md`](SKILLS.md) | The design-review workflow frontend changes go through | Current state |
 | [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) | Architecture roadmap — event sourcing, memory, causal reasoning, simulation, decision engine | **Mostly planned, not built** |

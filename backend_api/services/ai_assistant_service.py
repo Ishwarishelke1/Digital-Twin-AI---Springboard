@@ -75,7 +75,11 @@ async def _call_groq(prompt: str, api_key: str) -> str:
     response = await client.chat.completions.create(
         model="openai/gpt-oss-20b",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=500,
+        # gpt-oss is a reasoning model and spends its reasoning tokens out of this
+        # same budget before emitting any of the reply. At 500 a question needing
+        # any thought came back as an empty string with finish_reason="stop" —
+        # silent, and indistinguishable from an outage at the call site.
+        max_tokens=2000,
     )
     return (response.choices[0].message.content or "").strip()
 

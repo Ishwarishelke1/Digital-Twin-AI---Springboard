@@ -14,6 +14,7 @@ from models.habit import HabitTracking
 from models.activity import UserActivity
 from models.simulation import Simulation, Recommendation
 from models.feedback import AssistantFeedback
+from models.ai_recommendation import AIRecommendation
 
 logger = logging.getLogger("digital_twin_ai.database")
 
@@ -47,6 +48,7 @@ async def connect_to_mongo() -> None:
             Simulation,
             Recommendation,
             AssistantFeedback,
+            AIRecommendation,
         ],
     )
     logger.info("MongoDB Atlas connection pool established → db: %s", settings.MONGODB_DB_NAME)

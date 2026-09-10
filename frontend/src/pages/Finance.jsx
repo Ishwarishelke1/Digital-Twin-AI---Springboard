@@ -9,6 +9,7 @@ import TransactionTable from "../components/TransactionTable";
 import ExpenseChart from "../components/ExpenseChart";
 import CategoryChart from "../components/CategoryChart";
 import SavingsProgress from "../components/SavingsProgress";
+import AddGoalCard from "../components/AddGoalCard";
 import ConfirmDialog from "../components/ConfirmDialog";
 import Pagination from "../components/Pagination";
 import IncomeProjectionCard from "../components/IncomeProjectionCard";
@@ -496,20 +497,24 @@ function Finance() {
             currency={currency}
           />
 
-          {/* Finance goals */}
-          {financeGoals.length > 0 ? (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              {financeGoals.map((goal) => (
-                <SavingsProgress
-                  key={goal.goal_id}
-                  goal={goal}
-                  currency={currency}
-                />
-              ))}
-            </div>
-          ) : (
-            <SavingsProgress goal={null} currency={currency} />
-          )}
+          {/* Finance goals. The add tile fills the first empty slot and carries
+              the category through, so the Goals page opens its form already set
+              to FINANCE rather than making the user pick it again. */}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {financeGoals.map((goal) => (
+              <SavingsProgress
+                key={goal.goal_id}
+                goal={goal}
+                currency={currency}
+              />
+            ))}
+
+            <AddGoalCard
+              category="FINANCE"
+              label={financeGoals.length > 0 ? "Add another goal" : "Add your first savings goal"}
+              hint="Save for something, build a fund"
+            />
+          </div>
 
           <TransactionTable
             transactions={tableTransactions}

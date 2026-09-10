@@ -6,11 +6,15 @@ import StudySummary from "../components/StudySummary";
 import StudyForm from "../components/StudyForm";
 import StudyChart from "../components/StudyChart";
 import SubjectProgress from "../components/SubjectProgress";
-import RecommendationCard from "../components/RecommendationCard";
+import GoalProgressCard from "../components/GoalProgressCard";
+import AddGoalCard from "../components/AddGoalCard";
+import useAIRecommendations from "../hooks/useAIRecommendations";
+import { getStudyRecommendations } from "../services/recommendationService";
+import AIRecommendationPanel from "../components/AIRecommendationPanel";
 import StudyTable from "../components/StudyTable";
 import ConfirmDialog from "../components/ConfirmDialog";
 import Pagination from "../components/Pagination";
-import { Input } from "../components/ui/Field";
+
 import Button from "../components/ui/Button";
 import { SkeletonStatGrid, SkeletonChart, SkeletonTable } from "../components/ui/Skeleton";
 import Modal from "../components/ui/Modal";
@@ -26,62 +30,7 @@ import {
 
 import { getProductivitySummary } from "../services/productivityService";
 
-/** Builds RecommendationCard's insight strings from a ProductivitySummaryResponse. */
-function buildStudyInsights(summary) {
-  if (!summary) return [];
-
-  const insights = [
-    `Current productivity score: ${Math.round(
-      summary.productivity_score.productivity_score
-    )}%`,
-
-    `Focus score: ${Math.round(summary.focus_score.focus_score)}% (${
-      summary.focus_score.method_used === "recorded_average"
-        ? "based on logged focus ratings"
-        : "estimated from attendance"
-    })`,
-
-    `Studied ${Math.round(
-      summary.completion_percentage.completion_percentage
-    )}% of days in the last ${
-      summary.completion_percentage.window_days
-    } days`,
-  ];
-
-  const predicted =
-    summary.performance_prediction?.predicted_productivity?.[0]
-      ?.projected_score;
-
-  if (predicted != null) {
-    insights.push(
-      `Predicted productivity next week: ${Math.round(predicted)}%`
-    );
-  }
-
-  if (summary.performance_prediction?.predicted_exam_score != null) {
-    insights.push(
-      `Predicted exam score: ${Math.round(
-        summary.performance_prediction.predicted_exam_score
-      )}%`
-    );
-  }
-
-  return insights;
-}
-
 /** Builds SubjectProgress's [{ name, progress }] list. */
-function buildSubjectProgress(subjectPerformance) {
-  return subjectPerformance.map((s) => ({
-    name: s.subject,
-    progress: Math.round(
-      s.average_exam_pct ||
-        s.average_quiz_pct ||
-        s.average_attendance_pct ||
-        0
-    ),
-  }));
-}
-
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function buildWeeklyChart(sessions) {
@@ -126,6 +75,8 @@ function Study() {
   const studyGoals =
     user?.active_goals?.filter((g) => g.category === "STUDY") ?? [];
 
+  const recommendations = useAIRecommendations(getStudyRecommendations);
+
   const [sessions, setSessions] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [subjectProgress, setSubjectProgress] = useState([]);
@@ -137,7 +88,7 @@ function Study() {
   const [addDrawerOpen, setAddDrawerOpen] = useState(false);
 
   const [subjectFilter, setSubjectFilter] = useState("");
-  const [subjectInput, setSubjectInput] = useState("");
+  const [sessionTypeFilter, setSessionTypeFilter] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isTableLoading, setIsTableLoading] = useState(false);
@@ -157,7 +108,7 @@ function Study() {
         setTotalPages(result.total_pages || 1);
         setChartData(buildWeeklyChart(data));
         setProductivitySummary(summary);
-        setSubjectProgress(buildSubjectProgress(subjectPerformance));
+        setSubjectProgress(subjectPerformance);
       } catch (err) {
         console.error("Failed to fetch study sessions:", err);
         toast.error(
@@ -185,6 +136,7 @@ function Study() {
           page,
           limit: 20,
           ...(subjectFilter ? { subject: subjectFilter } : {}),
+          ...(sessionTypeFilter ? { session_type: sessionTypeFilter } : {}),
         });
 
         if (cancelled) return;
@@ -215,18 +167,21 @@ function Study() {
     };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, subjectFilter]);
+  }, [page, subjectFilter, sessionTypeFilter]);
 
-  function applySubjectFilter(e) {
-    e.preventDefault();
-
-    setSubjectFilter(subjectInput.trim());
+  function handleSubjectFilterChange(e) {
+    setSubjectFilter(e.target.value);
     setPage(1);
   }
 
-  function clearSubjectFilter() {
-    setSubjectInput("");
+  function handleSessionTypeFilterChange(e) {
+    setSessionTypeFilter(e.target.value);
+    setPage(1);
+  }
+
+  function clearFilters() {
     setSubjectFilter("");
+    setSessionTypeFilter("");
     setPage(1);
   }
 
@@ -246,8 +201,6 @@ function Study() {
           Number(formData.minutes || 0) / 60,
 
         session_type: formData.session_type,
-
-        attendance_pct: Number(formData.attendance_pct),
 
         linked_goal_id: formData.linked_goal_id || null,
 
@@ -302,19 +255,21 @@ function Study() {
 
         session_type: formData.session_type,
 
-        attendance_pct: Number(formData.attendance_pct),
-
         linked_goal_id: formData.linked_goal_id || null,
 
+        // On edit, blank marks are sent as an explicit null rather than omitted.
+        // The backend PATCH uses exclude_unset, so an omitted field keeps its stored
+        // value — which would leave a quiz score attached to a session after the user
+        // switched it away from Practice Exam and the quiz fields cleared themselves.
         ...(formData.quiz_marks !== "" && formData.quiz_marks != null
           ? { quiz_marks: Number(formData.quiz_marks), max_quiz_marks: Number(formData.max_quiz_marks) }
-          : {}),
+          : { quiz_marks: null, max_quiz_marks: null }),
         ...(formData.exam_marks !== "" && formData.exam_marks != null
           ? { exam_marks: Number(formData.exam_marks), max_exam_marks: Number(formData.max_exam_marks) }
-          : {}),
+          : { exam_marks: null, max_exam_marks: null }),
         ...(formData.focus_score !== "" && formData.focus_score != null
           ? { focus_score: Number(formData.focus_score) }
-          : {}),
+          : { focus_score: null }),
 
         session_date: formData.date
           ? new Date(formData.date).toISOString()
@@ -397,9 +352,6 @@ function Study() {
       session_type:
         record.session_type || "DEEP_WORK",
 
-      attendance_pct:
-        record.attendance_pct ?? 100,
-
       linked_goal_id:
         record.linked_goal_id || "",
 
@@ -455,57 +407,55 @@ function Study() {
 
           <SubjectProgress subjects={subjectProgress} />
 
-          <RecommendationCard
-            insights={buildStudyInsights(productivitySummary)}
+          {/* Study goals — same treatment Finance gives its savings goals.
+              Progress is the backend's per-goal current_value, incremented by
+              sessions linked to that goal, not a count of sessions on screen.
+
+              Fixed columns, not a flexing row: a single goal stretched to full
+              width read as a layout choice rather than as "you have one goal".
+              The add tile fills the first empty slot with the action someone
+              looking at a short row most likely wants. */}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {studyGoals.map((goal) => (
+              <GoalProgressCard
+                key={goal.goal_id}
+                goal={goal}
+                formatValue={(value) => Number(value).toLocaleString()}
+                unitLabel={goal.unit}
+              />
+            ))}
+
+            <AddGoalCard
+              category="STUDY"
+              label={studyGoals.length > 0 ? "Add another goal" : "Add your first study goal"}
+              hint="Finish a course, hit a target score"
+            />
+          </div>
+
+          <AIRecommendationPanel
+            title="AI Study Recommendations"
+            items={recommendations.items}
+            provider={recommendations.provider}
+            generatedAt={recommendations.generatedAt}
+            stale={recommendations.stale}
+            isLoading={recommendations.isLoading}
+            isGenerating={recommendations.isGenerating}
+            onGenerate={recommendations.generate}
+            emptyMessage="Log a few study sessions and recommendations will appear here."
           />
 
-          {/* Subject filter */}
-
-          <form
-            className="flex flex-wrap items-center gap-3"
-            onSubmit={applySubjectFilter}
-          >
-
-            <Input
-              type="text"
-              placeholder="Filter by subject…"
-              value={subjectInput}
-              onChange={(e) =>
-                setSubjectInput(e.target.value)
-              }
-              aria-label="Filter by subject"
-              className="w-auto"
-            />
-
-            <Button type="submit">
-              Apply
-            </Button>
-
-            {subjectFilter && (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={clearSubjectFilter}
-              >
-                Clear
-              </Button>
-            )}
-
-          </form>
-
-          {isTableLoading ? (
-
-            <SkeletonTable rows={6} cols={4} />
-
-          ) : (
-
-            <StudyTable
-              sessions={sessions}
-              onEdit={startEdit}
-              onDelete={handleDelete}
-            />
-
-          )}
+          <StudyTable
+            sessions={sessions}
+            onEdit={startEdit}
+            onDelete={handleDelete}
+            isLoading={isTableLoading}
+            subjectFilter={subjectFilter}
+            sessionTypeFilter={sessionTypeFilter}
+            onSubjectFilterChange={handleSubjectFilterChange}
+            onSessionTypeFilterChange={handleSessionTypeFilterChange}
+            onClearFilters={clearFilters}
+            subjects={subjectProgress.map((s) => s.subject)}
+          />
 
           <Pagination
             page={page}

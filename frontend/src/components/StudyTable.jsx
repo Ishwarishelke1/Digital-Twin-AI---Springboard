@@ -1,9 +1,22 @@
 import { useState } from "react";
-import { Edit, Trash2, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
-import { Input, Select } from "./ui/Field";
+import { Edit, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Loader2 } from "lucide-react";
+import { Input } from "./ui/Field";
 import Badge from "./ui/Badge";
 import EmptyState from "./ui/EmptyState";
+import { FilterMenu, FilterDropdown } from "./ui/FilterMenu";
 
+const SESSION_TYPE_LABELS = {
+  DEEP_WORK: "Deep Work",
+  REVIEW: "Review",
+  LECTURE: "Lecture",
+  PRACTICE_EXAM: "Practice Exam",
+  ASSIGNMENT: "Assignment",
+  RESEARCH: "Research",
+};
+
+/* Hours are stored as entered. The form converts "5 hours 59 minutes" to
+ * 5.983333333333333, so the raw value has to be rounded for display — a session
+ * rendered as "5.9833333333333 hrs" is a formatting bug, not extra precision. */
 const SORTERS = {
   date: (s) => new Date(s.session_date || 0).getTime(),
   hours: (s) => Number(s.study_hours ?? s.hours ?? 0),
@@ -23,27 +36,22 @@ function SortButton({ label, active, dir, onClick }) {
   );
 }
 
-function StudyTable({ sessions, onEdit, onDelete }) {
+function StudyTable({
+  sessions, onEdit, onDelete, isLoading = false,
+  subjectFilter, sessionTypeFilter, onSubjectFilterChange, onSessionTypeFilterChange,
+  onClearFilters, subjects = [],
+}) {
 
   const [search, setSearch] = useState("");
-
-  const [sessionType, setSessionType] = useState("All");
   const [sortKey, setSortKey] = useState("date");
   const [sortDir, setSortDir] = useState("desc");
 
-  const filteredSessions = sessions.filter((item) => {
-
-    const subjectMatch = (item.subject || "")
-      .toLowerCase()
-      .includes(search.toLowerCase());
-
-    const typeMatch =
-      sessionType === "All"
-        ? true
-        : item.session_type === sessionType;
-
-    return subjectMatch && typeMatch;
-  });
+  /* Search narrows the page you are looking at; the menu filters re-query the
+   * server. Same split as the Finance table — subject and session type change
+   * which rows exist, so they cannot be done client-side over one page of 50. */
+  const filteredSessions = sessions.filter((item) =>
+    (item.subject || "").toLowerCase().includes(search.toLowerCase())
+  );
 
   const sortedSessions = [...filteredSessions].sort((a, b) => {
     const diff = SORTERS[sortKey](a) - SORTERS[sortKey](b);
@@ -64,27 +72,44 @@ function StudyTable({ sessions, onEdit, onDelete }) {
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
 
-        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Study History</h3>
+        <div className="flex items-center gap-2.5">
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Study History</h3>
+          {isLoading && (
+            <Loader2 size={16} strokeWidth={2} className="animate-spin text-slate-400" aria-label="Refreshing" />
+          )}
+        </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex items-center gap-2.5">
 
           <Input
             type="text"
-            placeholder="Search Subject"
+            placeholder="Search subject..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="max-w-48"
+            className="max-w-56"
           />
 
-          <Select value={sessionType} onChange={(e) => setSessionType(e.target.value)} className="w-auto">
-            <option value="All">All Types</option>
-            <option value="DEEP_WORK">Deep Work</option>
-            <option value="REVIEW">Review</option>
-            <option value="LECTURE">Lecture</option>
-            <option value="PRACTICE_EXAM">Practice Exam</option>
-            <option value="ASSIGNMENT">Assignment</option>
-            <option value="RESEARCH">Research</option>
-          </Select>
+          <FilterMenu
+            label="Filter sessions"
+            hasActiveFilter={Boolean(subjectFilter || sessionTypeFilter)}
+            onClearFilters={onClearFilters}
+          >
+            <FilterDropdown
+              label="Filter by subject"
+              placeholder="All subjects"
+              value={subjectFilter}
+              onChange={onSubjectFilterChange}
+              options={subjects.map((s) => ({ value: s, label: s }))}
+            />
+
+            <FilterDropdown
+              label="Filter by session type"
+              placeholder="All types"
+              value={sessionTypeFilter}
+              onChange={onSessionTypeFilterChange}
+              options={Object.entries(SESSION_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+            />
+          </FilterMenu>
 
         </div>
 
@@ -93,7 +118,7 @@ function StudyTable({ sessions, onEdit, onDelete }) {
       {filteredSessions.length === 0 ? (
         <EmptyState title="No study sessions found" message="Try a different search or log a new session." />
       ) : (
-        <div className="overflow-x-auto">
+        <div className={`overflow-x-auto transition-opacity ${isLoading ? "opacity-50" : "opacity-100"}`}>
           <table className="w-full min-w-150 border-collapse text-sm">
 
             <thead>
@@ -119,7 +144,7 @@ function StudyTable({ sessions, onEdit, onDelete }) {
 
                   <td className="border-b border-slate-100 dark:border-slate-700 p-2.5 text-slate-600 dark:text-slate-400">{item.subject}</td>
 
-                  <td className="border-b border-slate-100 dark:border-slate-700 p-2.5 font-mono tabular-nums text-slate-600 dark:text-slate-400">{item.study_hours ?? item.hours ?? 0} hrs</td>
+                  <td className="border-b border-slate-100 dark:border-slate-700 p-2.5 font-mono tabular-nums text-slate-600 dark:text-slate-400">{Number(item.study_hours ?? item.hours ?? 0).toFixed(1)} hrs</td>
 
                   <td className="border-b border-slate-100 dark:border-slate-700 p-2.5">
                     <Badge tone={item.session_type === "DEEP_WORK" || item.session_type === "REVIEW" ? "success" : "warning"}>

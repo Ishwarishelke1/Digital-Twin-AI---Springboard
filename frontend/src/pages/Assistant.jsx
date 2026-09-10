@@ -1,12 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { toast } from "react-toastify";
 
 import ChatBox from "../components/ChatBox";
 import ChatInput from "../components/ChatInput";
 import QuickActions from "../components/QuickActions";
 import SuggestionCard from "../components/SuggestionCard";
-import { StatTile } from "../components/ui/StatTile";
-import { sendChatMessage, getSatisfactionSummary } from "../services/assistantService";
+import { sendChatMessage } from "../services/assistantService";
 import { getApiErrorMessage } from "../utils/apiError";
 
 function Assistant() {
@@ -18,13 +17,6 @@ function Assistant() {
     },
   ]);
   const [isThinking, setIsThinking] = useState(false);
-  const [satisfaction, setSatisfaction] = useState(null);
-
-  useEffect(() => {
-    getSatisfactionSummary().then(setSatisfaction).catch(() => {
-      // Non-critical — the chat still works without this stat, so fail silently.
-    });
-  }, []);
 
   const sendMessage = async (text) => {
 
@@ -53,15 +45,6 @@ function Assistant() {
       </p>
 
       <div className="flex flex-col gap-6">
-        {satisfaction && satisfaction.total_responses > 0 && (
-          <StatTile
-            label="Satisfaction"
-            value={`${Math.round(satisfaction.overall_satisfaction_pct)}%`}
-            accent={satisfaction.overall_satisfaction_pct >= 85 ? "emerald" : "amber"}
-            sublabel={`${satisfaction.total_responses} response${satisfaction.total_responses === 1 ? "" : "s"} — chat + recommendation feedback`}
-          />
-        )}
-
         <QuickActions sendMessage={sendMessage} />
 
         <SuggestionCard sendMessage={sendMessage} />

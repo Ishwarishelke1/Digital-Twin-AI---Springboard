@@ -29,3 +29,9 @@ dist-ssr
 *.sw?
 
 
+
+# Playwright (docs/TEST_PLAN.md Phase 2) — generated per run, and .auth/
+# holds a captured session cookie, which must never be committed.
+/test-results/
+/tests_e2e/report/
+/tests_e2e/.auth/

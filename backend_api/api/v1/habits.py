@@ -9,6 +9,9 @@ import logging
 from fastapi import APIRouter, Query, status
 
 from api.dependencies import CurrentUser
+from typing import Optional
+
+from models.enums import SleepBand
 from schemas.habit_schema import (
     HabitCreateRequest,
     HabitRecordResponse,
@@ -62,6 +65,8 @@ async def list_logs(
     current_user: CurrentUser,
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=30, ge=1, le=100),
+    mood_rating: Optional[int] = Query(default=None, ge=1, le=5, description="Filter by mood (1-5)"),
+    sleep_band: Optional[SleepBand] = Query(default=None, description="Filter by sleep against the healthy range"),
 ) -> PaginatedHabitResponse:
     """
     Returns paginated habit records sorted by log_date descending.
@@ -71,6 +76,8 @@ async def list_logs(
         user_id=str(current_user.id),
         page=page,
         limit=limit,
+        mood_rating=mood_rating,
+        sleep_band=sleep_band,
     )
 
 

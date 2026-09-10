@@ -11,6 +11,7 @@ A full-stack personal life dashboard that tracks finance, study, and daily habit
 | `README.md` | Project overview, setup, features | Current state |
 | `CLAUDE.md` | Code conventions and non-obvious behavior | Current state |
 | [`docs/CAPSTONE_REPORT.md`](docs/CAPSTONE_REPORT.md) | The project written up end to end: architecture, both ML models, results, the defects found, limitations | Current state |
+| [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md) | A plan to test every module, route, page and collection, and the deployability verdict | **Phase 0 done, Phases 1–3 in progress** |
 | [`docs/REMEDIATION_PLAN.md`](docs/REMEDIATION_PLAN.md) | Defects found by auditing the codebase, and how each was fixed | Current state |
 | [`docs/SKILLS.md`](docs/SKILLS.md) | The design-review workflow frontend changes go through | Current state |
 | [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | Architecture roadmap — event sourcing, memory, causal reasoning, simulation, decision engine | **Mostly planned, not built** |
@@ -141,6 +142,60 @@ npm run dev
 ```
 
 - App: `http://localhost:5173`
+
+### 3. Deployment (one image, one origin)
+
+Frontend and API are deployed as **one origin**, not two services behind CORS —
+this is the deployment topology this project has settled on, and it's not
+incidental. The httpOnly auth cookie is `SameSite=Lax`; a Lax cookie is not sent
+on a cross-site request, so a frontend and backend on different domains (a
+Vercel frontend calling a Render backend, the common free-tier split) would
+silently 401 every authenticated call. `vite.config.js` already proxies `/api`
+to the backend in development for exactly this reason — same-origin deploy just
+extends that same shape to production. See `docs/TEST_PLAN.md` Phase 0.1 for
+the full reasoning, and Phase 0's checklist for what was verified rather than
+assumed.
+
+```bash
+docker build -t digital-twin-ai .
+docker run -d -p 8000:8000 --env-file .env -e NODE_ENV=production digital-twin-ai
+```
+
+What the image does, in three stages (see `Dockerfile` for the full commentary):
+
+1. **Builds the frontend** — no `VITE_API_URL` is set; the same-origin deploy
+   means its relative `/api/v1` default (`frontend/src/services/api.js`) is
+   already correct, so there's no build-time secret to pass in.
+2. **Trains the goal-completion model** — `backend_api/models_store/` is
+   gitignored on purpose (deterministic under `--seed`, so regenerated rather
+   than committed, same convention as `backend_api/data/`). The build runs
+   `generate_synthetic_users.py` then `train_goal_model.py` so the image always
+   ships with a real, working model rather than depending on someone having a
+   binary checked out locally.
+3. **Assembles a slim runtime image** from both stages' outputs — no Node,
+   pandas, or matplotlib in the final image, and `main.py` serves the built
+   frontend directly (`StaticFiles` + an SPA fallback) whenever
+   `frontend/dist` is present, so the same `main.py` runs unchanged in local
+   dev (`--reload`, no build present) and in the container.
+
+**No secrets are ever baked into the image** — `.dockerignore` excludes `.env`
+explicitly. `MONGODB_URI`, `JWT_SECRET_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`,
+and `NODE_ENV=production` all reach the container via `--env-file` (or your
+platform's own env-var mechanism) at *run* time.
+
+**`NODE_ENV=production` is the one variable that matters most** — it hides
+`/api/docs`/`/api/redoc`, engages `require_non_production()`'s guard on
+destructive scripts, and (as of this project's Phase 0 pass) now also flips
+`COOKIE_SECURE` on by default, so the auth cookie ships with `Secure` without
+that needing to be remembered as a second, separate variable. All three are
+covered by `backend_api/tests/test_config.py` and were verified against a real
+built container, not just read from the code.
+
+**Single instance, single worker, by design** (`Dockerfile`'s `CMD`) — the rate
+limiter (`core/rate_limit.py`) keeps its counters in-process, so more workers
+or more instances silently divides `/auth/login`'s protection by however many
+there are. Raise the worker/instance count only alongside moving the limiter to
+shared storage (Redis-backed slowapi storage, for instance) — not before.
 
 ---
 

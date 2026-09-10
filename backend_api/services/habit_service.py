@@ -12,11 +12,12 @@ from decimal import Decimal
 from typing import Optional
 
 from beanie import PydanticObjectId
+from bson import Decimal128
 from pymongo.errors import DuplicateKeyError
 
 from core.exceptions import ConflictError, NotFoundError
 from models.habit import HabitTracking
-from models.enums import BurnoutRisk
+from models.enums import BurnoutRisk, SleepBand
 from schemas.habit_schema import (
     HabitCreateRequest,
     HabitRecordResponse,
@@ -25,6 +26,7 @@ from schemas.habit_schema import (
 )
 import services.activity_service as activity_service
 from services.goal_progress_service import adjust_active_goal_progress
+from services.habit_analytics_service import SLEEP_HEALTHY_RANGE
 
 logger = logging.getLogger("digital_twin_ai.habit_service")
 
@@ -177,10 +179,25 @@ async def delete_daily_log(user_id: str, log_id: str) -> None:
     )
 
 
+def _sleep_band_filter(band: SleepBand) -> dict:
+    """Mongo range for one sleep bucket. `low`/`high` come from the analytics
+    engine's own healthy range rather than being restated here — a second copy of
+    those numbers would let the history table call a night healthy that the
+    lifestyle score calls short."""
+    low, high = SLEEP_HEALTHY_RANGE
+    if band is SleepBand.BELOW:
+        return {"$lt": Decimal128(str(low))}
+    if band is SleepBand.ABOVE:
+        return {"$gt": Decimal128(str(high))}
+    return {"$gte": Decimal128(str(low)), "$lte": Decimal128(str(high))}
+
+
 async def list_logs(
     user_id: str,
     page: int = 1,
     limit: int = 30,
+    mood_rating: Optional[int] = None,
+    sleep_band: Optional[SleepBand] = None,
 ) -> PaginatedHabitResponse:
     """
     Paginated habit history. Uses idx_habit_user_date_desc ESR index.
@@ -188,16 +205,22 @@ async def list_logs(
     uid = PydanticObjectId(user_id)
     skip = (page - 1) * limit
 
+    query_filter: dict = {"user_id": uid}
+    if mood_rating is not None:
+        query_filter["mood_rating"] = mood_rating
+    if sleep_band is not None:
+        # sleep_hours is stored as Decimal128, so the bounds must be too — a float
+        # bound silently matches nothing against a Decimal128 field.
+        query_filter["sleep_hours"] = _sleep_band_filter(sleep_band)
+
     records = await HabitTracking.find(
-        {"user_id": uid},
+        query_filter,
         sort=[("log_date", -1)],
         skip=skip,
         limit=limit,
     ).to_list()
 
-    total = await HabitTracking.find(
-        {"user_id": uid}
-    ).count()
+    total = await HabitTracking.find(query_filter).count()
 
     return PaginatedHabitResponse(
         data=[_to_response(r) for r in records],

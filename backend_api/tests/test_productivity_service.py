@@ -37,7 +37,6 @@ DEFAULT_WEEKS_BACK_FOR_TEST = 8  # matches services.productivity_service.DEFAULT
 def _session(
     subject="Math",
     study_hours=2.0,
-    attendance_pct=100.0,
     focus_score=None,
     quiz_marks_pct=None,
     exam_marks_pct=None,
@@ -46,7 +45,6 @@ def _session(
     return StudySessionMetrics(
         subject=subject,
         study_hours=study_hours,
-        attendance_pct=attendance_pct,
         focus_score=focus_score,
         quiz_marks_pct=quiz_marks_pct,
         exam_marks_pct=exam_marks_pct,
@@ -57,7 +55,6 @@ def _session(
 def _record(
     subject="Math",
     study_hours=2.0,
-    attendance_pct=100.0,
     focus_score=None,
     quiz_marks_pct=None,
     exam_marks_pct=None,
@@ -67,7 +64,6 @@ def _record(
     return SimpleNamespace(
         subject=subject,
         study_hours=Decimal(str(study_hours)),
-        attendance_pct=Decimal(str(attendance_pct)),
         focus_score=focus_score,
         quiz_marks_pct=quiz_marks_pct,
         exam_marks_pct=exam_marks_pct,
@@ -90,24 +86,22 @@ def _patch_find(records):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_session_productivity_uses_only_available_components():
-    # Only attendance + hours present -> full 100 on both -> 100.
-    perfect_minimal = _session(attendance_pct=100.0, study_hours=2.0)
-    assert _session_productivity_score(perfect_minimal) == 100.0
-
-    # Poor attendance and no study hours -> low score.
-    poor = _session(attendance_pct=0.0, study_hours=0.0)
-    assert _session_productivity_score(poor) == 0.0
+    # Hours alone: it is the only guaranteed component, so it carries the score
+    # outright. A session at the 2h benchmark with nothing else recorded is 100 —
+    # and one with no hours is 0, where attendance's old default used to floor it at 60.
+    assert _session_productivity_score(_session(study_hours=2.0)) == 100.0
+    assert _session_productivity_score(_session(study_hours=0.0)) == 0.0
 
 
 def test_session_productivity_includes_focus_and_performance_when_present():
     full = _session(
-        attendance_pct=100.0, study_hours=2.0, focus_score=100.0,
+        study_hours=2.0, focus_score=100.0,
         quiz_marks_pct=100.0, exam_marks_pct=100.0,
     )
     assert _session_productivity_score(full) == 100.0
 
     mixed = _session(
-        attendance_pct=50.0, study_hours=1.0, focus_score=50.0,
+        study_hours=1.0, focus_score=50.0,
         quiz_marks_pct=50.0, exam_marks_pct=50.0,
     )
     assert _session_productivity_score(mixed) == 50.0
@@ -115,7 +109,7 @@ def test_session_productivity_includes_focus_and_performance_when_present():
 
 def test_session_productivity_caps_long_sessions_at_full_hours_component():
     # 10-hour session shouldn't blow past the 100 cap on the "hours" component.
-    long_session = _session(attendance_pct=100.0, study_hours=10.0)
+    long_session = _session(study_hours=10.0)
     assert _session_productivity_score(long_session) == 100.0
 
 
@@ -125,8 +119,8 @@ def test_aggregate_productivity_score_empty_is_zero():
 
 def test_aggregate_productivity_score_averages_sessions():
     sessions = [
-        _session(attendance_pct=100.0, study_hours=2.0),  # 100
-        _session(attendance_pct=0.0, study_hours=0.0),    # 0
+        _session(study_hours=2.0),  # 100
+        _session(study_hours=0.0),  # 0
     ]
     assert _aggregate_productivity_score(sessions) == 50.0
 
@@ -138,11 +132,14 @@ def test_average_focus_score_uses_recorded_values_when_present():
     assert method == AnalyticsMethod.RECORDED_AVERAGE
 
 
-def test_average_focus_score_falls_back_to_attendance_proxy():
-    sessions = [_session(attendance_pct=90.0, focus_score=None), _session(attendance_pct=70.0, focus_score=None)]
+def test_average_focus_score_reports_insufficient_data_when_none_recorded():
+    """There is no proxy for focus. Attendance used to stand in here and reported a
+    confident score for users who had never rated a session — sessions with no focus
+    rating must say so instead."""
+    sessions = [_session(focus_score=None), _session(focus_score=None)]
     score, method = _average_focus_score(sessions)
-    assert score == 80.0
-    assert method == AnalyticsMethod.ATTENDANCE_PROXY
+    assert score == 0.0
+    assert method == AnalyticsMethod.INSUFFICIENT_DATA
 
 
 def test_average_focus_score_insufficient_data_when_no_sessions():
@@ -233,8 +230,8 @@ async def test_get_productivity_score_with_no_sessions():
 @pytest.mark.asyncio
 async def test_get_productivity_score_averages_sessions():
     records = [
-        _record(attendance_pct=100.0, study_hours=2.0),
-        _record(attendance_pct=50.0, study_hours=1.0),
+        _record(study_hours=2.0),
+        _record(study_hours=1.0),
     ]
     service = ProductivityService()
     with _patch_find(records):
@@ -244,13 +241,13 @@ async def test_get_productivity_score_averages_sessions():
 
 
 @pytest.mark.asyncio
-async def test_get_focus_score_falls_back_to_attendance_proxy():
-    records = [_record(attendance_pct=80.0, focus_score=None)]
+async def test_get_focus_score_reports_insufficient_data_when_none_recorded():
+    records = [_record(study_hours=2.0, focus_score=None)]
     service = ProductivityService()
     with _patch_find(records):
         result = await service.get_focus_score(VALID_USER_ID)
-    assert result.method_used == AnalyticsMethod.ATTENDANCE_PROXY
-    assert result.focus_score == 80.0
+    assert result.method_used == AnalyticsMethod.INSUFFICIENT_DATA
+    assert result.focus_score == 0.0
 
 
 @pytest.mark.asyncio
@@ -311,10 +308,10 @@ async def test_predict_performance_linear_regression_with_upward_trend():
     now = datetime.now(timezone.utc)
     # 4 distinct weeks, strictly increasing productivity via increasing study_hours.
     records = [
-        _record(study_hours=1.0, attendance_pct=100.0, session_date=now - timedelta(weeks=3)),
-        _record(study_hours=1.3, attendance_pct=100.0, session_date=now - timedelta(weeks=2)),
-        _record(study_hours=1.6, attendance_pct=100.0, session_date=now - timedelta(weeks=1)),
-        _record(study_hours=2.0, attendance_pct=100.0, session_date=now),
+        _record(study_hours=1.0, session_date=now - timedelta(weeks=3)),
+        _record(study_hours=1.3, session_date=now - timedelta(weeks=2)),
+        _record(study_hours=1.6, session_date=now - timedelta(weeks=1)),
+        _record(study_hours=2.0, session_date=now),
     ]
     service = ProductivityService()
     with _patch_find(records):
@@ -343,7 +340,7 @@ async def test_predict_performance_includes_exam_prediction_when_exam_data_exist
 
 @pytest.mark.asyncio
 async def test_get_summary_bundles_all_six_outputs():
-    records = [_record(attendance_pct=90.0, study_hours=2.0, focus_score=75.0)]
+    records = [_record(study_hours=2.0, focus_score=75.0)]
     service = ProductivityService()
     with _patch_find(records):
         summary = await service.get_summary(VALID_USER_ID)

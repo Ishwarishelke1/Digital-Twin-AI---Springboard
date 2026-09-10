@@ -22,7 +22,6 @@ class StudyActivity(Document):
     subject: str = Field(..., max_length=100)
     study_hours: DecimalAnnotation = Field(..., ge=Decimal("0.1"), le=Decimal("24.0"))
     session_type: SessionType
-    attendance_pct: DecimalAnnotation = Field(default=Decimal("100.0"), ge=0, le=100)
 
     # Optional mark fields
     quiz_marks: Optional[DecimalAnnotation] = None
@@ -45,19 +44,23 @@ class StudyActivity(Document):
     def compute_percentage_scores(self) -> "StudyActivity":
         """
         Replicates the StudyActivitySchema.pre('validate') middleware from academic_schema.ts.
-        Automatically computes quiz_marks_pct and exam_marks_pct when raw marks are provided.
-        """
-        if self.quiz_marks is not None and self.max_quiz_marks is not None:
-            if self.max_quiz_marks > 0:
-                self.quiz_marks_pct = round(
-                    (self.quiz_marks / self.max_quiz_marks) * 100, 2
-                )
+        Automatically computes quiz_marks_pct and exam_marks_pct when raw marks are provided,
+        and clears the percentage when they are removed.
 
-        if self.exam_marks is not None and self.max_exam_marks is not None:
-            if self.max_exam_marks > 0:
-                self.exam_marks_pct = round(
-                    (self.exam_marks / self.max_exam_marks) * 100, 2
-                )
+        The clear matters on update: a percentage left behind after its marks were
+        cleared would keep feeding the subject-performance averages, so a score the
+        user deleted would go on counting.
+        """
+        if self.quiz_marks is not None and self.max_quiz_marks is not None and self.max_quiz_marks > 0:
+            self.quiz_marks_pct = round((self.quiz_marks / self.max_quiz_marks) * 100, 2)
+        elif self.quiz_marks is None:
+            self.quiz_marks_pct = None
+
+        if self.exam_marks is not None and self.max_exam_marks is not None and self.max_exam_marks > 0:
+            self.exam_marks_pct = round((self.exam_marks / self.max_exam_marks) * 100, 2)
+        elif self.exam_marks is None:
+            self.exam_marks_pct = None
+
         return self
 
     class Settings:

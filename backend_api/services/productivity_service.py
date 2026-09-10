@@ -4,8 +4,8 @@ services/productivity_service.py — Productivity Analytics Engine (Milestone 2,
 Reads existing study history directly from the existing `StudyActivity` Beanie model
 (no new collection, study_service.py is untouched) and produces:
   - productivity score      (composite 0-100 over a lookback window)
-  - focus score              (average of recorded focus_score, with an attendance-based
-                               fallback when no session has focus_score recorded)
+  - focus score              (average of recorded focus_score; reports insufficient_data
+                               when no session has one recorded)
   - weekly trend
   - monthly trend
   - completion percentage    (% of days in a window with at least one logged session)
@@ -52,9 +52,15 @@ DEFAULT_MONTHS_BACK = 6
 DEFAULT_PREDICTION_LOOKBACK_WEEKS = 26
 MOVING_AVERAGE_WINDOW = 3
 
-# Composite productivity score weights. Renormalized over whichever components
-# are actually present on a given session (attendance and hours are always present).
-PRODUCTIVITY_WEIGHTS = {"attendance": 0.30, "focus": 0.25, "performance": 0.25, "hours": 0.20}
+# Composite productivity score weights. Renormalized over whichever components are
+# actually present on a given session — only hours is guaranteed; focus and performance
+# are weighted in when recorded.
+#
+# Attendance used to carry 0.30 here and was dropped: it defaulted to 100 and nobody
+# ever edited it, so it contributed a constant 30 points to every score and inflated
+# the composite for sessions with nothing else recorded. Its weight was redistributed
+# proportionally across the three components that carry real signal.
+PRODUCTIVITY_WEIGHTS = {"focus": 0.35, "performance": 0.35, "hours": 0.30}
 STUDY_HOURS_BENCHMARK = 2.0  # a 2-hour session maps to a full 100 on the "hours" component
 
 
@@ -64,7 +70,6 @@ STUDY_HOURS_BENCHMARK = 2.0  # a 2-hour session maps to a full 100 on the "hours
 class StudySessionMetrics:
     subject: str
     study_hours: float
-    attendance_pct: float
     focus_score: Optional[float]
     quiz_marks_pct: Optional[float]
     exam_marks_pct: Optional[float]
@@ -76,10 +81,10 @@ def _clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
 
 
 def _session_productivity_score(session: StudySessionMetrics) -> float:
-    """Weighted composite of attendance, focus, quiz/exam performance, and study-hours
-    consistency. Only components actually present on the session are weighted in."""
+    """Weighted composite of focus, quiz/exam performance, and study-hours consistency.
+    Only components actually present on the session are weighted in — a session with
+    hours alone scores purely on hours."""
     values: dict[str, float] = {
-        "attendance": _clamp(session.attendance_pct),
         "hours": _clamp((session.study_hours / STUDY_HOURS_BENCHMARK) * 100.0),
     }
     if session.focus_score is not None:
@@ -106,12 +111,10 @@ def _average_focus_score(sessions: list[StudySessionMetrics]) -> tuple[float, An
     if recorded:
         return round(sum(recorded) / len(recorded), 2), AnalyticsMethod.RECORDED_AVERAGE
 
-    attendance_values = [s.attendance_pct for s in sessions]
-    if attendance_values:
-        # No sessions have focus_score recorded — attendance is a reasonable,
-        # lower-confidence proxy for engagement.
-        return round(sum(attendance_values) / len(attendance_values), 2), AnalyticsMethod.ATTENDANCE_PROXY
-
+    # No session has focus_score recorded. There is no proxy for it — attendance used
+    # to stand in here, but it defaulted to 100 and measured nothing, so the fallback
+    # reported a confident 100% focus for users who had never rated a session. Saying
+    # there is no data is the accurate answer.
     return 0.0, AnalyticsMethod.INSUFFICIENT_DATA
 
 
@@ -295,7 +298,6 @@ class ProductivityService:
             StudySessionMetrics(
                 subject=r.subject,
                 study_hours=float(r.study_hours),
-                attendance_pct=float(r.attendance_pct),
                 focus_score=float(r.focus_score) if r.focus_score is not None else None,
                 quiz_marks_pct=float(r.quiz_marks_pct) if r.quiz_marks_pct is not None else None,
                 exam_marks_pct=float(r.exam_marks_pct) if r.exam_marks_pct is not None else None,

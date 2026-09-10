@@ -1,0 +1,16 @@
+# requirements-dev.txt — everything requirements.txt doesn't cover: running the
+# test suite, and running the scripts/ directory (synthetic data generation,
+# model training/evaluation, benchmarking, backup drills). None of this ships
+# with the deployed app.
+-r requirements.txt
+
+# ─── Tests ────────────────────────────────────────────────────────────────────
+pytest==8.2.2
+pytest-asyncio==0.23.7
+
+# ─── Training / evaluation scripts (scripts/train_*.py, sensitivity_analysis.py) ──
+pandas==2.2.2
+matplotlib==3.9.4
+
+# ─── Scripts that hit the app over HTTP (test_regression.py, some benchmarks) ──
+requests==2.32.3

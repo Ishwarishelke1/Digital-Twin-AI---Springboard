@@ -239,9 +239,11 @@ function Sidebar({ expanded, onToggleExpanded, mobileOpen, onCloseMobile }) {
       } lg:translate-x-0 ${expanded ? "lg:w-64" : "lg:w-16"}`}
     >
       <div className={`flex items-center gap-3 border-b border-slate-200 px-4 py-6 dark:border-white/10 ${expanded ? "" : "lg:px-3"}`}>
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-sm font-bold text-white">
-          DT
-        </div>
+        <img
+          src="/logo-icon.png"
+          alt="Digital Twin AI"
+          className="h-11 w-11 shrink-0 object-contain drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)]"
+        />
 
         <div className={`min-w-0 flex-1 ${labelClasses(expanded)}`}>
           <h2 className="text-[19px] font-semibold">Digital Twin</h2>

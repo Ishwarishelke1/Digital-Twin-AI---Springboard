@@ -1,8 +1,26 @@
 import { useState } from "react";
-import { Trash2, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { Trash2, ArrowUp, ArrowDown, ArrowUpDown, Loader2 } from "lucide-react";
 import { Input } from "./ui/Field";
 import Badge from "./ui/Badge";
 import EmptyState from "./ui/EmptyState";
+import { FilterMenu, FilterDropdown } from "./ui/FilterMenu";
+
+const MOOD_OPTIONS = [
+  { value: "5", label: "Excellent" },
+  { value: "4", label: "Happy" },
+  { value: "3", label: "Normal" },
+  { value: "2", label: "Sad" },
+  { value: "1", label: "Very sad" },
+];
+
+/* Bands, not raw hours: the boundaries are the analytics engine's own healthy
+ * sleep range (7-9h), so filtering here means the same thing as the lifestyle
+ * score does. */
+const SLEEP_OPTIONS = [
+  { value: "BELOW", label: "Under 7 hours" },
+  { value: "HEALTHY", label: "Healthy (7-9h)" },
+  { value: "ABOVE", label: "Over 9 hours" },
+];
 
 const SORTERS = {
   date: (h) => new Date(h.log_date || 0).getTime(),
@@ -23,16 +41,20 @@ function SortButton({ label, active, dir, onClick }) {
   );
 }
 
-function HabitTable({ habits, onDelete }) {
+function HabitTable({
+  habits, onDelete, isLoading = false,
+  moodFilter, sleepFilter, onMoodFilterChange, onSleepFilterChange, onClearFilters,
+}) {
 
-  const [searchMood, setSearchMood] = useState("");
+  const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState("date");
   const [sortDir, setSortDir] = useState("desc");
 
+  /* Search narrows the page you are looking at; the menu filters re-query the
+   * server. Same split as the Finance and Study tables — mood and sleep change
+   * which rows exist, so they cannot be done client-side over one page. */
   const filteredHabits = habits.filter((item) =>
-    (item.mood || "")
-      .toLowerCase()
-      .includes(searchMood.toLowerCase())
+    (item.mood || "").toLowerCase().includes(search.toLowerCase())
   );
 
   const sortedHabits = [...filteredHabits].sort((a, b) => {
@@ -54,22 +76,53 @@ function HabitTable({ habits, onDelete }) {
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
 
-        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Habit History</h3>
+        <div className="flex items-center gap-2.5">
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Habit History</h3>
+          {isLoading && (
+            <Loader2 size={16} strokeWidth={2} className="animate-spin text-slate-400" aria-label="Refreshing" />
+          )}
+        </div>
 
-        <Input
-          type="text"
-          placeholder="Search Mood..."
-          value={searchMood}
-          onChange={(e) => setSearchMood(e.target.value)}
-          className="max-w-48"
-        />
+        <div className="flex items-center gap-2.5">
+
+          <Input
+            type="text"
+            placeholder="Search mood..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="max-w-56"
+          />
+
+          <FilterMenu
+            label="Filter habit logs"
+            hasActiveFilter={Boolean(moodFilter || sleepFilter)}
+            onClearFilters={onClearFilters}
+          >
+            <FilterDropdown
+              label="Filter by mood"
+              placeholder="All moods"
+              value={moodFilter}
+              onChange={onMoodFilterChange}
+              options={MOOD_OPTIONS}
+            />
+
+            <FilterDropdown
+              label="Filter by sleep"
+              placeholder="All sleep"
+              value={sleepFilter}
+              onChange={onSleepFilterChange}
+              options={SLEEP_OPTIONS}
+            />
+          </FilterMenu>
+
+        </div>
 
       </div>
 
       {filteredHabits.length === 0 ? (
         <EmptyState title="No habit logs found" message="Try a different search or log today's habits." />
       ) : (
-        <div className="overflow-x-auto">
+        <div className={`overflow-x-auto transition-opacity ${isLoading ? "opacity-50" : "opacity-100"}`}>
           <table className="w-full min-w-125 border-collapse text-sm">
 
             <thead>

@@ -6,6 +6,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { loginUser } from "../services/authService";
 import { useAuth } from "../context/useAuth";
 import { useForceLightTheme } from "../hooks/useForceLightTheme";
+import SilkBackground from "../components/SilkBackground";
 import { Input } from "../components/ui/Field";
 import Button from "../components/ui/Button";
 import { getApiErrorMessage } from "../utils/apiError";
@@ -92,17 +93,22 @@ function Login() {
           uncluttered on phones, per the redesign concept's split layout.
           Fills the full window height on its half rather than floating as a
           centered card, so the page always fills the browser window. */}
-      <div className="hidden w-1/2 shrink-0 flex-col justify-center bg-gradient-to-br from-indigo-700 to-indigo-600 px-16 text-white md:flex">
-        <div className="mb-7 flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 text-sm font-bold">
-          DT
+      <div className="relative hidden w-1/2 shrink-0 flex-col justify-center overflow-hidden bg-gradient-to-br from-indigo-700 to-indigo-600 px-16 text-white md:flex">
+        <SilkBackground />
+        <div className="relative z-10">
+          <img
+            src="/logo-icon.png"
+            alt="Digital Twin AI"
+            className="mb-7 h-28 w-28 object-contain drop-shadow-[0_0_16px_rgba(255,255,255,0.55)]"
+          />
+          <h2 className="max-w-[18ch] font-serif text-[32px] font-semibold leading-tight text-white">
+            Your habits, finances, and study — one forecast.
+          </h2>
+          <p className="mt-4 max-w-[36ch] text-[15px] leading-relaxed text-white/75">
+            Digital Twin AI learns from what you log and predicts where you're headed, so you
+            can adjust before the month closes, not after.
+          </p>
         </div>
-        <h2 className="max-w-[18ch] font-serif text-[32px] font-semibold leading-tight text-white">
-          Your habits, finances, and study — one forecast.
-        </h2>
-        <p className="mt-4 max-w-[36ch] text-[15px] leading-relaxed text-white/75">
-          Digital Twin learns from what you log and predicts where you're headed, so you can
-          adjust before the month closes instead of after.
-        </p>
       </div>
 
       <div className="flex w-full flex-1 items-center justify-center overflow-y-auto p-6">

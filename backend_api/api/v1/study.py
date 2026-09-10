@@ -11,6 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, Query, status
 
 from api.dependencies import CurrentUser
+from models.enums import SessionType
 from schemas.study_schema import (
     StudyCreateRequest,
     StudyUpdateRequest,
@@ -79,6 +80,7 @@ async def list_sessions(
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
     subject: Optional[str] = Query(default=None, description="Filter by subject name"),
+    session_type: Optional[SessionType] = Query(default=None, description="Filter by session type"),
 ) -> PaginatedStudyResponse:
     """
     Returns paginated study records for the authenticated user.
@@ -89,6 +91,7 @@ async def list_sessions(
         page=page,
         limit=limit,
         subject_filter=subject,
+        session_type_filter=session_type,
     )
 
 
