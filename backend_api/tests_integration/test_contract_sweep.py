@@ -466,6 +466,43 @@ async def test_assistant_degrades_cleanly_with_no_provider_configured(user_a):
     assert r.status_code == 201, r.text
 
 
+async def test_chat_feedback_rejects_a_realistic_full_length_reply(user_a):
+    """A short hand-typed snippet (the case above) is not what the frontend
+    actually sends — ChatBox.jsx used to forward the AI reply's full text
+    unmodified, and a real reply is routinely well past the schema's 300-char
+    cap. tests/test_feedback_service.py's `..._truncates_long_snippet` calls
+    the service function directly and passes, which is real but misleading:
+    it demonstrates the service *would* truncate a long snippet if it ever
+    saw one, while Pydantic's max_length=300 rejects it with a 422 before the
+    service function is ever reached. Only an HTTP-level call sees that.
+    Confirmed against a live backend before the frontend fix (ChatBox.jsx now
+    truncates before sending) — kept here as the regression test."""
+    realistic_reply = (
+        "Based on your real Digital Twin data, your savings rate is strong "
+        "at 98 percent and your study consistency is excellent at 96 percent "
+        "this month. Based on your real Digital Twin data, your savings rate "
+        "is strong at 98 percent and your study consistency is excellent, "
+        "and your habit score of 33 percent still has room to improve if "
+        "you keep logging consistently every day."
+    )
+    assert len(realistic_reply) > 300, "fixture must actually exercise the boundary"
+
+    r = await user_a.post(
+        "/api/v1/assistant/chat/feedback",
+        json={"message_snippet": realistic_reply, "feedback": "HELPFUL"},
+    )
+    assert r.status_code == 422, (
+        f"expected the schema's max_length=300 to reject an untruncated reply, "
+        f"got {r.status_code}: {r.text}"
+    )
+
+    r = await user_a.post(
+        "/api/v1/assistant/chat/feedback",
+        json={"message_snippet": realistic_reply[:300], "feedback": "HELPFUL"},
+    )
+    assert r.status_code == 201, f"a client that truncates first must still succeed: {r.text}"
+
+
 async def test_recommendations_fall_back_to_rules_with_no_provider_configured(user_a):
     """Unlike /assistant/chat, the recommendations endpoints are documented to
     never fail outright — provider="rules" is the designed fallback, not an

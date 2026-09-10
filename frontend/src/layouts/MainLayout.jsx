@@ -3,6 +3,8 @@ import { Outlet } from "react-router-dom";
 import { Menu } from "lucide-react";
 
 import Sidebar from "../components/Sidebar";
+import AssistantLauncher from "../components/AssistantLauncher";
+import { AssistantChatProvider } from "../context/AssistantChatContext";
 
 const EXPANDED_KEY = "digital_twin_sidebar_expanded";
 
@@ -62,9 +64,18 @@ function MainLayout() {
           <span className="font-serif text-[15px] font-semibold text-slate-800 dark:text-slate-100">Digital Twin</span>
         </div>
 
-        <main className="p-4 sm:p-6 lg:p-8">
-          <Outlet />
-        </main>
+        {/* One provider for both surfaces that read/write the assistant
+            conversation: the page content below (Assistant.jsx, via Outlet)
+            and the floating launcher, fixed-positioned outside <main> since
+            it isn't part of the page flow — both need to be inside this for
+            "ask in the launcher, see it on the page" to actually be true. */}
+        <AssistantChatProvider>
+          <main className="p-4 sm:p-6 lg:p-8">
+            <Outlet />
+          </main>
+
+          <AssistantLauncher />
+        </AssistantChatProvider>
       </div>
     </div>
   );
