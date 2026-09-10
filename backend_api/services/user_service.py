@@ -24,6 +24,7 @@ from models.habit import HabitTracking
 from models.activity import UserActivity
 from models.simulation import Recommendation, Simulation
 from models.feedback import AssistantFeedback
+from models.ai_recommendation import AIRecommendation
 
 from schemas.auth_schema import RegisterRequest, ChangePasswordRequest
 from schemas.user_schema import ProfileUpdateRequest, ActiveGoalCreateRequest, ActiveGoalUpdateRequest, PreferencesUpdateRequest
@@ -371,6 +372,13 @@ async def delete_user(user: User) -> None:
     await Simulation.find(Simulation.user_id == uid).delete()
     await Recommendation.find(Recommendation.user_id == uid).delete()
     await AssistantFeedback.find(AssistantFeedback.user_id == uid).delete()
+    # AIRecommendation (collection "ai_recommendations") is the cached
+    # generated-recommendation set from ai_recommendation_service.py — a
+    # distinct collection from Recommendation/"recommendations" (simulation
+    # recommendations) above. Missing here left an orphaned document behind
+    # after account deletion, caught by scripts/audit_data_integrity.py's
+    # "orphaned user data" check.
+    await AIRecommendation.find(AIRecommendation.user_id == uid).delete()
 
     await user.delete()
     logger.info("User %s and all associated records deleted.", uid)

@@ -668,7 +668,11 @@ class DecisionSimulationService:
         return items
 
     async def get_simulation(self, user_id: str, simulation_id: str) -> SimulationDetailResponse:
-        simulation = await Simulation.get(PydanticObjectId(simulation_id))
+        try:
+            sid = PydanticObjectId(simulation_id)
+        except Exception:
+            raise NotFoundError("Simulation", simulation_id)
+        simulation = await Simulation.get(sid)
         if not simulation or simulation.user_id != PydanticObjectId(user_id):
             raise NotFoundError("Simulation", simulation_id)
         return SimulationDetailResponse(
@@ -702,7 +706,11 @@ class DecisionSimulationService:
                 f"Invalid feedback value '{feedback}'. Must be one of: {[f.value for f in UserFeedback]}"
             )
 
-        recommendation = await Recommendation.get(PydanticObjectId(recommendation_id))
+        try:
+            rid = PydanticObjectId(recommendation_id)
+        except Exception:
+            raise NotFoundError("Recommendation", recommendation_id)
+        recommendation = await Recommendation.get(rid)
         if not recommendation or recommendation.user_id != PydanticObjectId(user_id):
             raise NotFoundError("Recommendation", recommendation_id)
 
