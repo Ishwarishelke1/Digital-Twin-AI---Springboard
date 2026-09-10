@@ -36,7 +36,7 @@ const PUBLIC_PAGES = [
 test.describe("protected pages render with real data, no console/network noise", () => {
   for (const { path, landmark } of PAGES) {
     test(`${path} — direct URL renders "${landmark}"`, async ({ page, setTheme }, testInfo) => {
-      await setTheme(testInfo.project.name === "dark");
+      await setTheme(testInfo.project.name.endsWith("dark"));
       await page.goto(path);
       await expect(page.getByText(landmark, { exact: false }).first()).toBeVisible({ timeout: 10_000 });
     });

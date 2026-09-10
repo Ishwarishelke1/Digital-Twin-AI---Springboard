@@ -18,6 +18,7 @@ from beanie import PydanticObjectId
 from core.exceptions import AuthenticationError, ConflictError
 from core.security import hash_password
 from models.activity import UserActivity
+from models.ai_recommendation import AIRecommendation
 from models.enums import Gender, RiskTolerance
 from models.feedback import AssistantFeedback
 from models.finance import FinancialRecord
@@ -216,10 +217,15 @@ async def test_authenticate_user_nonexistent_email_rejected():
 # ─── delete_user ───────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_delete_user_removes_all_seven_associated_collections():
-    """Regression test for this session's cascading-delete fix: Simulation,
-    Recommendation, and AssistantFeedback must be cleaned up alongside
-    finance/study/habit/activity records."""
+async def test_delete_user_removes_all_eight_associated_collections():
+    """Regression test for cascading-delete fixes: Simulation, Recommendation,
+    AssistantFeedback, and AIRecommendation (the cached generated-recommendation
+    set from ai_recommendation_service.py — a distinct collection,
+    "ai_recommendations", from Recommendation's "recommendations") must all be
+    cleaned up alongside finance/study/habit/activity records. AIRecommendation
+    was missed originally — confirmed live via a real account that had called
+    GET /recommendations/habits?generate=true, then deleted: the document
+    survived deletion until this fix (see docs/NEW_USER_TEST_REPORT.md)."""
     user = User.model_construct(email="todelete@example.com", password_hash="x", profile=Profile(name="Del", age=30))
     user.id = PydanticObjectId("507f1f77bcf86cd799439013")
 
@@ -229,7 +235,8 @@ async def test_delete_user_removes_all_seven_associated_collections():
         return patch.object(model, "find", return_value=query), query
 
     patches_and_queries = [_mock_find(m) for m in (
-        FinancialRecord, StudyActivity, HabitTracking, UserActivity, Simulation, Recommendation, AssistantFeedback
+        FinancialRecord, StudyActivity, HabitTracking, UserActivity, Simulation, Recommendation,
+        AssistantFeedback, AIRecommendation,
     )]
 
     ctx_managers = [p for p, _ in patches_and_queries]

@@ -25,10 +25,13 @@ router = APIRouter(prefix="/assistant", tags=["AI Assistant"])
 @router.post("/chat", response_model=ChatResponse, summary="Send a message to the AI assistant")
 @limiter.limit("15/minute")
 async def chat(request: Request, body: ChatRequest, current_user: CurrentUser) -> ChatResponse:
-    """Grounds the reply in the user's real profile/goals/digital-twin-state,
-    tries Gemini first, falls back to Groq on failure. Rate-limited since LLM
-    calls cost money/quota, same reasoning as the auth-route limits."""
-    reply, provider_used = await get_assistant_reply(current_user, body.message)
+    """Grounds the reply in the user's live profile, goals, finance, study,
+    habits, forecasts and what-if history (services/ai_assistant_service.py's
+    build_assistant_context), tries Gemini first, falls back to Groq on
+    failure. Rate-limited since LLM calls cost money/quota, same reasoning as
+    the auth-route limits."""
+    history = [turn.model_dump() for turn in body.history] if body.history else None
+    reply, provider_used = await get_assistant_reply(current_user, body.message, history)
     return ChatResponse(reply=reply, provider_used=provider_used)
 
 

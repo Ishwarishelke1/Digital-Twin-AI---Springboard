@@ -22,11 +22,14 @@ function Assistant() {
 
     if (!text.trim() || isThinking) return;
 
+    // Snapshot the conversation so far as history — sent back to the backend
+    // for bounded multi-turn memory (see assistantService.sendChatMessage).
+    const history = messages;
     setMessages((prev) => [...prev, { sender: "user", text }]);
     setIsThinking(true);
 
     try {
-      const { reply } = await sendChatMessage(text);
+      const { reply } = await sendChatMessage(text, history);
       setMessages((prev) => [...prev, { sender: "ai", text: reply }]);
     } catch (err) {
       toast.error(getApiErrorMessage(err, "The assistant couldn't respond. Please try again."));
@@ -41,7 +44,7 @@ function Assistant() {
       <h2 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">Digital Twin AI Assistant</h2>
 
       <p className="mb-6 mt-1.5 text-sm text-slate-500 dark:text-slate-400">
-        Grounded in your real profile, goals, and Digital Twin state — not canned replies.
+        Grounded in your real profile, goals, finance, study, habits, forecasts, and what-if history — not canned replies.
       </p>
 
       <div className="flex flex-col gap-6">

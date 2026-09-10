@@ -7,12 +7,22 @@ import api from "./api";
 /**
  * Sends a message to the AI assistant and gets a grounded reply back
  * (Gemini primary, Groq fallback — see backend_api/services/ai_assistant_service.py).
+ * The reply is grounded in the user's live finance, study, habit, forecast and
+ * what-if data — not just profile/goals.
  * POST /api/v1/assistant/chat
  * @param {string} message
+ * @param {{sender: "user"|"ai", text: string}[]} [history] - recent prior turns,
+ *   oldest first, for conversational continuity. Transcripts aren't persisted
+ *   server-side, so the client resends the tail of the conversation on each
+ *   call; the backend trims to its own bounded window regardless of how many
+ *   are sent (capped at 20 here to match the schema's max_length).
  * @returns {Promise<{ reply: string, provider_used: string }>}
  */
-export const sendChatMessage = async (message) => {
-  const response = await api.post("/assistant/chat", { message });
+export const sendChatMessage = async (message, history = []) => {
+  const response = await api.post("/assistant/chat", {
+    message,
+    history: history.slice(-20).map(({ sender, text }) => ({ sender, text })),
+  });
   return response.data;
 };
 
