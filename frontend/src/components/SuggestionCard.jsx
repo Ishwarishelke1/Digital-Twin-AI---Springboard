@@ -1,11 +1,23 @@
+/**
+ * Suggested Questions — each one deliberately answerable from what the
+ * assistant is actually handed (services/ai_assistant_service.py's
+ * `_build_context`: savings rate, emergency fund, study consistency, habit
+ * completion, lifestyle score, productivity score, active goals). The
+ * assistant is told to say so plainly rather than guess when a question falls
+ * outside that context — a suggestion built to trigger exactly that response
+ * would make the assistant look unreliable for something it was never
+ * grounded on to begin with, which was true of a few of the questions this
+ * replaced (asking to predict a CGPA the app doesn't track, generic sleep/
+ * routine advice with no data behind it).
+ */
 function SuggestionCard({ sendMessage }) {
   const suggestions = [
-    "How can I improve my study performance?",
-    "Analyze my finance habits.",
-    "How can I sleep better?",
-    "Predict my CGPA.",
-    "Suggest a daily routine.",
-    "How can I improve my productivity?",
+    "How's my savings rate and emergency fund looking?",
+    "Am I on track with my active goals?",
+    "How consistent has my studying been lately?",
+    "How am I doing with my daily habits?",
+    "What's holding back my productivity score?",
+    "Give me an honest overview of my progress.",
   ];
 
   return (

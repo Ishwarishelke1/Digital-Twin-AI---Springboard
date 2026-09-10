@@ -1,36 +1,43 @@
-import { BarChart3, BookOpen, Wallet, HeartPulse, TrendingUp, Target } from "lucide-react";
+import { BarChart3, BookOpen, Wallet, Activity, TrendingUp, Target } from "lucide-react";
 
+/**
+ * Icon shortcuts for the same underlying chat — kept distinct in wording from
+ * SuggestionCard's pills below (they used to share one question verbatim,
+ * "How can I improve my productivity?", appearing twice on the same page).
+ * Same grounding rule as SuggestionCard: every prompt maps to a real field in
+ * the assistant's context (services/ai_assistant_service.py's `_build_context`).
+ */
 function QuickActions({ sendMessage }) {
   const actions = [
     {
       icon: BarChart3,
-      label: "Analyze My Progress",
-      prompt: "Analyze my overall progress",
-    },
-    {
-      icon: BookOpen,
-      label: "Study Plan",
-      prompt: "Generate a study plan",
+      label: "Overall Progress",
+      prompt: "Give me an honest, detailed assessment of my progress across finance, study, and habits.",
     },
     {
       icon: Wallet,
-      label: "Finance Tips",
-      prompt: "Give me finance tips",
+      label: "Savings Check",
+      prompt: "Break down my savings rate and emergency fund — am I in good shape?",
     },
     {
-      icon: HeartPulse,
-      label: "Health Advice",
-      prompt: "Give me health advice",
+      icon: BookOpen,
+      label: "Study Consistency",
+      prompt: "Rate my study consistency and tell me what would move it up.",
     },
     {
-      icon: TrendingUp,
-      label: "Predict Future",
-      prompt: "Predict my future performance",
+      icon: Activity,
+      label: "Habit Streaks",
+      prompt: "How's my habit completion rate, and what's slipping?",
     },
     {
       icon: Target,
-      label: "Improve Productivity",
-      prompt: "How can I improve productivity?",
+      label: "Goal Priorities",
+      prompt: "Which of my active goals should I be prioritizing right now?",
+    },
+    {
+      icon: TrendingUp,
+      label: "Productivity Tips",
+      prompt: "What's dragging down my productivity score, and how do I fix it?",
     },
   ];
 

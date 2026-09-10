@@ -197,6 +197,35 @@ or more instances silently divides `/auth/login`'s protection by however many
 there are. Raise the worker/instance count only alongside moving the limiter to
 shared storage (Redis-backed slowapi storage, for instance) — not before.
 
+### 3a. Running the whole stack locally with `docker-compose.yml`
+
+The plain `docker build`/`docker run` above needs a real `MONGODB_URI` you
+supply yourself (normally the Atlas cluster in `.env`). `docker-compose.yml`
+is the alternative for local use — it brings up the app **and** a local
+MongoDB together, one command:
+
+```bash
+docker compose up --build
+```
+
+- App: `http://localhost:8000`
+- MongoDB: `mongodb://localhost:27017` (also reachable directly, e.g. from
+  Compass or `mongosh`, if you want to inspect what landed there)
+
+**This never touches the real Atlas cluster.** `MONGODB_URI` is hardcoded in
+`docker-compose.yml` to the local `mongo` service, not read from `.env`, so
+it can't accidentally resolve to production even though compose auto-loads
+the same root `.env` for `JWT_SECRET_KEY`/`GEMINI_API_KEY`/`GROQ_API_KEY`
+(reusing your real values there is intentional — the assistant degrades
+cleanly to Groq or "no provider" if either key is blank). Data lands in a
+`digital_twin_ai_docker_local` database, in a named Docker volume that
+persists across `docker compose down`/`up` but not `docker compose down -v`.
+
+Verified end to end for this README: both containers start healthy, `/health`
+reports `database: connected`, a real `/auth/register` call succeeds, and the
+resulting document is confirmed to land in the local container's database,
+not Atlas.
+
 ---
 
 ## Features

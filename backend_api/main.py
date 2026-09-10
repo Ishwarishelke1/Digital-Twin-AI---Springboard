@@ -113,9 +113,27 @@ async def health_check() -> dict:
 # Conditional on the build existing so local `python -m uvicorn main:app --reload`
 # (no frontend build present) keeps working exactly as it does today — this
 # block is a no-op until `npm run build` has produced frontend/dist.
-_FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+#
+# Checks index.html and assets/ specifically, not just that the dist/
+# directory exists — `dist/` with no `dist/assets/` (an interrupted build, a
+# partial sync/copy into an image layer) used to crash the app at import time
+# with an unhandled RuntimeError from StaticFiles' own constructor, rather
+# than degrading to "frontend serving is a no-op" the way an absent dist/
+# already does. Found by tests_integration/ failing to even collect after a
+# `dist/` from an earlier, different build was left in an inconsistent state.
+def _is_frontend_build_complete(dist_dir: Path) -> bool:
+    """A real `npm run build` output has both of these; a directory that
+    exists but is missing either (an interrupted build, a partial copy into
+    an image layer) is not safe to mount — pulled out as its own function so
+    tests/test_main.py can exercise the exact boundary directly, with a
+    tmp_path fixture, rather than only indirectly through import-time state."""
+    return dist_dir.is_dir() and (dist_dir / "assets").is_dir() and (dist_dir / "index.html").is_file()
 
-if _FRONTEND_DIST.is_dir():
+
+_FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+_FRONTEND_BUILD_COMPLETE = _is_frontend_build_complete(_FRONTEND_DIST)
+
+if _FRONTEND_BUILD_COMPLETE:
     app.mount("/assets", StaticFiles(directory=_FRONTEND_DIST / "assets"), name="frontend-assets")
 
     @app.get("/{full_path:path}", include_in_schema=False)
