@@ -20,6 +20,16 @@ Phase 2.2's browser page walk passes 28/28 across two consecutive runs. Every
 one of those four was checked against something real — a built container, a
 real database, a real browser — not read off the code and assumed.
 
+**A follow-on new-user pass (Phase 5) then went further than the four-item
+minimum requires**, driven by a brand-new user rather than the seeded demo
+account: a zero-data sweep across every endpoint, every forecasting-tier
+boundary actually crossed, mobile viewport coverage, and — the most
+consequential finding — the conversational AI rewired to actually see the
+user's finance/study/habit/forecast/what-if data instead of almost none of
+it. Four real defects were found and fixed along the way, each with a
+regression test or a passing automated run. See "Phase 5 — New-user pass"
+below for the full account.
+
 That "yes" is scoped to what this plan actually set out to establish:
 **the application runs correctly end to end, in the shape it will actually be
 deployed in.** It does not cover load beyond a handful of users, CI, or
@@ -82,22 +92,28 @@ this document.
 | Rate limits actually trigger | ✅ All 4 configured limits hit for real — Phase 1.2 |
 | Database integrity (indexes, unique constraints, types, orphans) | ✅ **Audited against the live cluster** — Phase 3.1/3.2, **one real finding** (below) |
 | All 13 pages load clean, both themes, direct URL | ✅ **28/28, two consecutive runs, real browser** — Phase 2.2 |
+| A brand-new, zero-data user — every endpoint, every forecasting-tier boundary, adversarial input, cross-tenant across every domain | ✅ **`tests_integration/test_new_user_journey.py`, 16 tests** — see "Phase 5 — New-user pass" below |
+| Mobile viewport (390×844), both themes, plus a zero-data account browser walk | ✅ **`mobile-light`/`mobile-dark` Playwright projects, 30/30** — Phase 5 |
+| Conversational AI grounded in finance/study/habit/forecast/what-if data (previously profile+goals only) | ✅ Verified with 5 real Gemini/Groq calls — Phase 5 |
+| Goal `completed_at` stamping, forecasting method tiering (0/1/2-3/4+ points) | ✅ Now covered — Phase 5, see 1.3/1.4 below |
 
-**The plan's four-item minimum for "deployable" is now fully closed.**
-Everything below raises confidence further; none of it is required for the
-word to apply.
+**The plan's four-item minimum for "deployable" is now fully closed, and a
+subsequent new-user pass (Phase 5) found and fixed four further real defects**
+— see that section for detail. None of Phase 5 was required for the original
+four-item minimum; it closes ground the "Still open" table below used to list.
 
 **Still open, not yet closed:**
 
 | | Status |
 | :--- | :--- |
-| CI running the 367 unit + 18 integration + 28 e2e tests | Missing — no `.github/` |
+| CI running the full suite (373 unit + 34 integration + 58 e2e) | Missing — no `.github/` |
 | Rate limiting across >1 instance | Documented as single-instance-only (`Dockerfile`'s `CMD`); not load-tested |
 | Atlas M0 (no auto-backup, shared tier, connection cap) | Accepted limitation |
 | Error tracking / observability | Missing — `logging.basicConfig` only |
-| Goal `completed_at` stamping, known-fixture analytics assertions, method tiering | Not yet covered — Phase 1.3/1.4 gaps, see above |
-| Forms, table filters, keyboard operability, colour-token/currency checks | Not yet covered — Phase 2.4–2.7 gaps, beyond the page walk |
+| Known-fixture analytics assertions (hand-computed expected numbers) | Not yet covered — Phase 1.4 gap |
+| Forms, table filters, colour-token/currency checks via Playwright | Not yet covered — Phase 2.4–2.6 gaps, beyond the page walk (keyboard operability spot-checked by code reading in Phase 5, not yet Playwright-automated) |
 | Staging-rehearsed deploy; backup drill re-verified against today's data | Not yet done — Phase 3.3 gaps |
+| Real Mobile Safari (WebKit) coverage | Not set up — Phase 5's mobile projects verify a phone viewport on Chromium, the engine already used elsewhere in this suite, not WebKit itself (never installed in this toolchain) |
 | Load/limits under real concurrency | Not tested — Phase 3.4 |
 
 **One real data-integrity finding, not fixed (audit is read-only by design):**
@@ -299,9 +315,12 @@ from `tests/`.
 - [x] Habits: **corrected**, not as originally written above — same-day
       re-logging is a deliberate upsert (200, same id, fields updated), not a
       409. Verified both the create and the update-in-place.
-- [ ] Goals: `ACTIVE → COMPLETED` stamping `completed_at` once and never
-      clearing it — not yet covered by this suite (needs a goal driven all
-      the way to completion, which the current flows don't do).
+- [x] Goals: `ACTIVE → COMPLETED` stamping `completed_at` — covered in
+      Phase 5's `test_goal_prediction_already_completed_gate`: a goal PATCHed
+      to `current_value == target_value` stamps `completed_at`, verified via
+      the prediction endpoint refusing a probability for it afterward (the
+      gate `goal_completion_service.py` checks `completed_at is not None`
+      against).
 - [ ] Every error path returns the `{"error", "message"}` shape — checked
       implicitly everywhere a 4xx status was asserted, but no test asserts the
       *body shape itself* is `{"error", "message"}` rather than FastAPI's raw
@@ -313,7 +332,14 @@ from `tests/`.
 - [ ] Known-fixture assertions (seed specific values, check specific output)
       not yet done — this needs its own pass with real, hand-computed
       expected numbers, not just "did it 200."
-- [ ] Method tiering (0/1/2/4+ data points) not yet exercised.
+- [x] Method tiering (0/1/2-3/4+ data points) — covered in Phase 5's
+      `test_savings_forecast_method_crosses_every_tier`: posts income/expense
+      transactions one trailing month at a time and confirms `method_used`
+      crosses every documented boundary (`insufficient_data` →
+      `naive_last_value` → `moving_average` → `linear_regression`) at the
+      exact point `forecast_service._select_method` says it should — this
+      also caught a wrong assumption in the *test itself* about how
+      `_build_monthly_series` zero-fills (see Phase 5 for the correction).
 - [x] **Empty-state behaviour**: all 29 read-only analytics/forecast/
       productivity/habit-analytics/trend/simulation/recommendation endpoints
       confirmed to return 200 (never 500) for a genuinely brand-new,
@@ -325,14 +351,18 @@ from `tests/`.
       containerised Phase 0 verification (real `joblib.load` inside the
       runtime image) and by `GET /users/me/goals/predictions` returning 200
       with a real (empty, for a fresh user) list in `tests_integration/`.
-- [ ] The OOD-refusal and sufficiency-gate paths specifically (a goal
-      deliberately outside the trained feature range; one under three days
-      old) are not yet exercised at the HTTP level — `tests/test_goal_completion_service.py`
-      covers this at the service level already, but not through a real request.
-- [ ] App-still-starts-if-artifact-missing: covered by
-      `services/goal_completion_service.py`'s own `_load()` design (non-fatal,
-      logged) but not exercised by deliberately removing the artifact and
-      booting the app.
+- [x] The sufficiency-gate refusal paths exercised at the HTTP level in
+      Phase 5: a window shorter than `MIN_DURATION_DAYS`, a goal created less
+      than `MIN_DAYS_ELAPSED` ago, a passed deadline, and an already-completed
+      goal — each confirmed to return `probability: None` with a `reason`
+      through `GET /users/me/goals/predictions`, not just at the service
+      level (`tests/test_goal_completion_service.py` still covers that layer
+      separately).
+- [x] App-still-starts-if-artifact-missing: exercised directly in Phase 5 —
+      the artifact was moved aside, `goal_completion_service._load()`
+      confirmed to return `None` cleanly (no exception), then restored.
+- [ ] Deliberately removing the artifact and booting the **full app** (not
+      just calling `_load()` in isolation) is still not exercised.
 
 ### 1.6 AI providers — mostly done, at the unit level
 
@@ -602,8 +632,9 @@ Deployable means all of these are true and **verified**, not assumed:
 - [x] The app refuses to start with a placeholder secret (`tests/test_config.py`,
       and confirmed the two guards that actually key off `NODE_ENV` — hidden
       `/api/docs` and `COOKIE_SECURE` — both engage in a real container).
-- [x] 367 unit + 18 integration + 28 e2e tests pass; `eslint` and `vite build`
-      clean, both frontend and the new `tests_e2e/`.
+- [x] 373 unit + 34 integration + 58 e2e tests pass (up from 367 + 18 + 28 —
+      see Phase 5 below); `eslint` and `vite build` clean, both frontend and
+      `tests_e2e/`.
 
 **All four of the plan's minimum items for "deployable" are done.** The two
 remaining unchecked items (a fresh staging rehearsal, a backup drill re-run
@@ -624,8 +655,12 @@ see "The answer, today" at the top.
    bugs in the harness itself along the way (a false-positive noise check, a
    shared-session poisoning bug), each confirmed fixed by a clean re-run
    rather than assumed.
-5. Everything else — Phase 1.3/1.4's remaining gaps, Phase 2.4–2.8, Phase
-   3.3–3.4, CI — as time allows, in that rough order of value per hour.
+5. ~~**Phase 5**~~ — done. A dedicated new-user pass closed the Phase 1.3/1.4
+   gaps named above, added mobile viewport coverage, and — the highest-value
+   find — fixed the conversational AI's blindness to most of the user's own
+   data. See "Phase 5 — New-user pass" below.
+6. Everything else — Phase 2.4–2.6, Phase 3.3–3.4, CI — as time allows, in
+   that rough order of value per hour.
 
 ### Where this ran
 
@@ -638,7 +673,58 @@ via `scripts/seed_playwright_user.py` — also never touching
 read-only by design, which is exactly what let it run directly against the
 live cluster: no write, so nothing to be careful about beyond making sure it
 really doesn't write — verified in code review and by watching it behave
-identically on a read-only rehearsal copy first.
+identically on a read-only rehearsal copy first. Phase 5 ran against the same
+disposable local databases as Phases 1 and 2 — never `digital_twin_ai_prod`.
+
+---
+
+## Phase 5 — New-user pass ✅ done
+
+A follow-on pass, driven by a brand-new user rather than the seeded demo
+account, covering exactly the ground the "Still open" table above used to
+list: Phase 1.3/1.4's remaining gaps, mobile viewport coverage, and the
+conversational AI's actual data coverage. Full defect-by-defect writeup in
+**`docs/NEW_USER_TEST_REPORT.md`** — this section is the summary.
+
+**New test coverage**: `tests_integration/test_new_user_journey.py` (16 tests
+— zero-data sweep, forecasting-tier boundaries crossed for real, ML
+sufficiency-gate refusals, adversarial input, cross-tenant isolation extended
+to habits/simulations, cascade-delete); `tests_e2e/new-user.spec.js` (a
+genuinely fresh account, registered in-browser, walks every page asserting no
+`NaN`/`Infinity`/`undefined`/`null` renders); `mobile-light`/`mobile-dark`
+Playwright projects (390×844, both themes).
+
+**Four real defects found and fixed, each with a regression test or a
+passing automated run confirming the fix:**
+
+1. **`GET /simulation/{id}` and the recommendation-feedback endpoint 500'd on
+   a malformed id** — missing the same `try/except PydanticObjectId(...)`
+   guard every other service uses. Fixed to a clean 404.
+2. **`DELETE /users/me` orphaned cached AI recommendations** — the cascade
+   deleted from 7 collections, not `ai_recommendations` (a distinct
+   collection from `Recommendation`'s `recommendations`). Reproduced live
+   with a real account and a real Groq-generated recommendation, fixed,
+   re-verified live.
+3. **The conversational AI was grounded in almost nothing** — only
+   `profile`/`active_goals[:5]`/a cached `digital_twin_state` snapshot; blind
+   to finance, study, habits, forecasts, and what-if history, and answering
+   from stale numbers even when it did have something to say. Rewired to
+   compose all the existing engines live via their public async methods
+   (`user_service.get_twin_context`, `finance_service`, `study_service`,
+   `habit_analytics_service`, `forecast_service`, `simulation_service`), each
+   domain summarised rather than dumped to keep the prompt small, with an
+   explicit "no data yet" line per domain rather than silent omission. Added
+   bounded multi-turn memory end-to-end (schema → service → frontend).
+   Verified with 5 real Gemini/Groq calls against a running backend.
+4. **The new mobile Playwright projects launched the wrong browser engine** —
+   `devices["iPhone 12"]` defaults to WebKit (real iOS only runs Safari's
+   engine); this toolchain has only ever installed Chromium. Fixed by forcing
+   `browserName: "chromium"`. Verified: 30/30, twice.
+
+**Full regression after all four fixes**: 373 unit tests (was 367) + 34
+integration tests (was 18) + 58 e2e tests across 4 projects — light, dark,
+mobile-light, mobile-dark, 28-or-30 each — all passing, `eslint`/`vite build`
+clean.
 
 ---
 
