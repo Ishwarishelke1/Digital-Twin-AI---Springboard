@@ -1,0 +1,62 @@
+# docker-compose.yml — the whole project, one command: `docker compose up --build`.
+#
+# Two services: the app (built from the repo's own three-stage Dockerfile —
+# frontend build -> model training -> slim runtime, see Dockerfile's own
+# comments) and a local MongoDB for it to talk to.
+#
+# SAFETY — read before touching MONGODB_URI below: the root .env in this repo
+# holds the REAL Atlas connection string for digital_twin_ai_prod (see
+# CLAUDE.md — "there is currently no separate test/staging database").
+# docker compose auto-loads that same .env to fill in any ${VAR} used here,
+# so MONGODB_URI is deliberately hardcoded to the `mongo` service below
+# instead of interpolated — an accidental ${MONGODB_URI} here would point a
+# brand-new local stack straight at production. JWT_SECRET_KEY and the two
+# LLM provider keys ARE interpolated from that same .env on purpose: reusing
+# your real Gemini/Groq keys locally is exactly what you want (the assistant
+# degrades cleanly to Groq or "no provider" if either is blank — see
+# services/ai_assistant_service.py), and JWT_SECRET_KEY just needs to be
+# *some* real, non-placeholder value (core/config.py refuses to boot with the
+# shipped placeholder), which your existing .env already has.
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017" # exposed so you can also point Compass/mongosh at it directly
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      # Hardcoded, not interpolated — see the safety note above. A name that
+      # obviously isn't the real one, so `docker compose logs app` never
+      # reads as if it were talking to production.
+      MONGODB_URI: mongodb://mongo:27017
+      MONGODB_DB_NAME: digital_twin_ai_docker_local
+      # NODE_ENV=development by default so this "just works" for local use —
+      # /api/docs stays visible and require_non_production() stays permissive
+      # against the clearly-local database name above. Override to
+      # `production` (docker compose --env-file, or an exported shell var)
+      # only when this compose file is genuinely how you deploy, not just how
+      # you run the whole stack locally.
+      NODE_ENV: ${NODE_ENV:-development}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+
+volumes:
+  mongo_data:
