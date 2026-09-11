@@ -5,8 +5,12 @@ const CURRENCY_SYMBOLS = {
   INR: "₹",
 };
 
+/** Returns just the symbol for a currency code, falling back to the code itself if unknown. */
+export function getCurrencySymbol(currencyCode) {
+  return CURRENCY_SYMBOLS[currencyCode] ?? `${currencyCode ?? ""} `;
+}
+
 /** Formats an amount with the symbol for the given currency code, falling back to the code itself if unknown. */
 export function formatCurrency(amount, currencyCode) {
-  const symbol = CURRENCY_SYMBOLS[currencyCode] ?? `${currencyCode ?? ""} `;
-  return `${symbol}${Number(amount).toLocaleString()}`;
+  return `${getCurrencySymbol(currencyCode)}${Number(amount).toLocaleString()}`;
 }

@@ -8,6 +8,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import Button from "../components/ui/Button";
 import Modal from "../components/ui/Modal";
 import EmptyState from "../components/ui/EmptyState";
+import StaggerIn from "../components/ui/StaggerIn";
 
 import { addGoal, updateGoal, deleteGoal, getGoalPredictions } from "../services/userService";
 import { useAuth } from "../context/useAuth";
@@ -82,17 +83,18 @@ function GoalGroups({ goals, completed = false, predictions, onEdit, onDelete })
           </p>
 
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {groupGoals.map((g) => (
-              <GoalCard
-                key={g.goal_id}
-                title={g.title}
-                value={`${Number(g.current_value).toLocaleString()} / ${Number(g.target_value).toLocaleString()} ${g.unit}`}
-                completed={completed}
-                targetDate={g.target_date}
-                prediction={predictions[g.goal_id]}
-                onEdit={() => onEdit(g)}
-                onDelete={() => onDelete(g.goal_id)}
-              />
+            {groupGoals.map((g, i) => (
+              <StaggerIn key={g.goal_id} index={i}>
+                <GoalCard
+                  title={g.title}
+                  value={`${Number(g.current_value).toLocaleString()} / ${Number(g.target_value).toLocaleString()} ${g.unit}`}
+                  completed={completed}
+                  targetDate={g.target_date}
+                  prediction={predictions[g.goal_id]}
+                  onEdit={() => onEdit(g)}
+                  onDelete={() => onDelete(g.goal_id)}
+                />
+              </StaggerIn>
             ))}
           </div>
         </div>

@@ -7,6 +7,7 @@ import { loginUser } from "../services/authService";
 import { useAuth } from "../context/useAuth";
 import { useForceLightTheme } from "../hooks/useForceLightTheme";
 import SilkBackground from "../components/SilkBackground";
+import SplitHeading from "../components/ui/SplitHeading";
 import { Input } from "../components/ui/Field";
 import Button from "../components/ui/Button";
 import { getApiErrorMessage } from "../utils/apiError";
@@ -119,9 +120,11 @@ function Login() {
               Digital Twin AI
             </p>
 
-            <h1 className="mt-2 text-2xl font-semibold text-slate-800 dark:text-slate-100">
-              Welcome Back
-            </h1>
+            <SplitHeading
+              as="h1"
+              text="Welcome Back"
+              className="mt-2 text-2xl font-semibold text-slate-800 dark:text-slate-100"
+            />
 
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Login to continue

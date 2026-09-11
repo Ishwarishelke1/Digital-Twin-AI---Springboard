@@ -1,4 +1,5 @@
 import { Sparkles, Wand2 } from "lucide-react";
+import StaggerIn from "./ui/StaggerIn";
 
 const PROVIDER_LABELS = {
   groq: "Groq",
@@ -95,14 +96,15 @@ function AIRecommendationPanel({
       ) : (
         <div className={`flex flex-col gap-2.5 transition-opacity ${isGenerating ? "opacity-50" : "opacity-100"}`}>
           {items.map((text, i) => (
-            <div
-              key={i}
-              className={`rounded-lg border-l-4 bg-slate-50 p-3.5 text-sm text-slate-700 dark:bg-slate-700/40 dark:text-slate-300 ${
-                hasModelOutput ? "border-violet-500" : "border-slate-300 dark:border-slate-600"
-              }`}
-            >
-              {text}
-            </div>
+            <StaggerIn key={i} index={i}>
+              <div
+                className={`rounded-lg border-l-4 bg-slate-50 p-3.5 text-sm text-slate-700 dark:bg-slate-700/40 dark:text-slate-300 ${
+                  hasModelOutput ? "border-violet-500" : "border-slate-300 dark:border-slate-600"
+                }`}
+              >
+                {text}
+              </div>
+            </StaggerIn>
           ))}
         </div>
       )}

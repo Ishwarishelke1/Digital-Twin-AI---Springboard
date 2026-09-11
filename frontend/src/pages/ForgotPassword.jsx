@@ -6,6 +6,7 @@ import { Input } from "../components/ui/Field";
 import Button from "../components/ui/Button";
 import { useForceLightTheme } from "../hooks/useForceLightTheme";
 import SilkBackground from "../components/SilkBackground";
+import SplitHeading from "../components/ui/SplitHeading";
 
 function ForgotPassword() {
   useForceLightTheme();
@@ -54,9 +55,11 @@ function ForgotPassword() {
               Digital Twin AI
             </p>
 
-            <h1 className="mt-2 text-2xl font-semibold text-slate-800 dark:text-slate-100">
-              Forgot Password
-            </h1>
+            <SplitHeading
+              as="h1"
+              text="Forgot Password"
+              className="mt-2 text-2xl font-semibold text-slate-800 dark:text-slate-100"
+            />
 
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Enter your email to receive a reset link.

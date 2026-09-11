@@ -15,6 +15,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import Pagination from "../components/Pagination";
 import Button from "../components/ui/Button";
 import Drawer from "../components/ui/Drawer";
+import StaggerIn from "../components/ui/StaggerIn";
 import {
   SkeletonStatGrid,
   SkeletonChart,
@@ -326,13 +327,14 @@ function Habits() {
               The add tile fills the first empty slot with the action someone
               looking at a short row most likely wants. */}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {habitGoals.map((goal) => (
-              <GoalProgressCard
-                key={goal.goal_id}
-                goal={goal}
-                formatValue={(value) => Number(value).toLocaleString()}
-                unitLabel={goal.unit}
-              />
+            {habitGoals.map((goal, i) => (
+              <StaggerIn key={goal.goal_id} index={i}>
+                <GoalProgressCard
+                  goal={goal}
+                  formatValue={(value) => Number(value).toLocaleString()}
+                  unitLabel={goal.unit}
+                />
+              </StaggerIn>
             ))}
 
             <AddGoalCard

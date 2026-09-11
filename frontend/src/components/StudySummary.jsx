@@ -28,9 +28,9 @@ function StudySummary({ sessions, productivitySummary }) {
 
   return (
     <StatGrid>
-      <StatTile label="Total Study Hours" value={`${totalHours} hrs`} />
+      <StatTile label="Total Study Hours" value={totalHours} suffix=" hrs" />
       <StatTile label="Subjects" value={totalSubjects} />
-      <StatTile label="Goal Completion" value={`${goalPercentage}%`} />
+      <StatTile label="Goal Completion" value={goalPercentage} suffix="%" />
       <StatTile label="Productivity" value={productivity} />
     </StatGrid>
   );

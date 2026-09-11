@@ -14,6 +14,7 @@ import Badge from "../components/ui/Badge";
 import EmptyState from "../components/ui/EmptyState";
 import Modal from "../components/ui/Modal";
 import { StatGrid, StatTile } from "../components/ui/StatTile";
+import SplitHeading from "../components/ui/SplitHeading";
 import { SkeletonStatGrid, SkeletonChart, SkeletonTable } from "../components/ui/Skeleton";
 
 import { getUser, addGoal } from "../services/userService";
@@ -163,9 +164,9 @@ function Dashboard() {
   const profile = userData?.profile;
   const goals   = userData?.active_goals ?? [];
 
-  const savingsRate    = savingsRatePct != null ? `${savingsRatePct.toFixed(1)}%` : "—";
-  const studyScore     = productivityScore ? `${Math.round(productivityScore.productivity_score)}%` : "—";
-  const habitRate      = consistencyScore ? `${Math.round(consistencyScore.consistency_score)}%` : "—";
+  const savingsRate    = savingsRatePct != null ? Number(savingsRatePct.toFixed(1)) : "—";
+  const studyScore     = productivityScore ? Math.round(productivityScore.productivity_score) : "—";
+  const habitRate      = consistencyScore ? Math.round(consistencyScore.consistency_score) : "—";
   const goalsCompleted = goals.length ? `${goals.filter(g => g.status === "COMPLETED").length}/${goals.length}` : "—";
 
   const handleAddGoal = async (goalPayload) => {
@@ -188,7 +189,7 @@ function Dashboard() {
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
 
         <div>
-          <h2 className="text-3xl font-semibold text-slate-800 dark:text-slate-100">Dashboard</h2>
+          <SplitHeading as="h2" text="Dashboard" className="text-3xl font-semibold text-slate-800 dark:text-slate-100" />
 
           <p className="mt-1.5 text-slate-500 dark:text-slate-400">
             {isLoading
@@ -220,6 +221,8 @@ function Dashboard() {
                 accent="indigo"
                 label="Savings Rate"
                 value={savingsRate}
+                suffix={savingsRate !== "—" ? "%" : undefined}
+                decimals={1}
                 sublabel={
                   trend?.savings?.projected_savings?.length
                     ? `Predicted next month: ${formatCurrency(Math.round(trend.savings.projected_savings[0].value), currency)}`
@@ -233,6 +236,7 @@ function Dashboard() {
                 accent="emerald"
                 label="Study Consistency"
                 value={studyScore}
+                suffix={studyScore !== "—" ? "%" : undefined}
                 sublabel={
                   trend?.study?.predicted_exam_score != null
                     ? `Predicted exam: ${Math.round(trend.study.predicted_exam_score)}%`
@@ -246,6 +250,7 @@ function Dashboard() {
                 accent="amber"
                 label="Habit Score"
                 value={habitRate}
+                suffix={habitRate !== "—" ? "%" : undefined}
                 sublabel={
                   trend?.fitness?.projected_fitness_score?.length
                     ? `Predicted next week: ${Math.round(trend.fitness.projected_fitness_score[0].value)}%`

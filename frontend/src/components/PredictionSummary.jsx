@@ -15,10 +15,10 @@ function PredictionSummary({ history }) {
   return (
     <div className="">
       <StatGrid>
-        <StatTile predicted label="Overall AI Score" value={`${latest.overall}%`} />
-        <StatTile predicted label="Finance Prediction" value={`${latest.finance}%`} />
-        <StatTile predicted label="Study Prediction" value={`${latest.study}%`} />
-        <StatTile predicted label="Health Prediction" value={`${latest.health}%`} />
+        <StatTile predicted label="Overall AI Score" value={latest.overall} suffix="%" />
+        <StatTile predicted label="Finance Prediction" value={latest.finance} suffix="%" />
+        <StatTile predicted label="Study Prediction" value={latest.study} suffix="%" />
+        <StatTile predicted label="Health Prediction" value={latest.health} suffix="%" />
       </StatGrid>
     </div>
   );

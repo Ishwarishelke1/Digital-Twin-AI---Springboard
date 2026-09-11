@@ -1,5 +1,5 @@
 import { StatTile } from "./ui/StatTile";
-import { formatCurrency } from "../utils/currency";
+import { getCurrencySymbol } from "../utils/currency";
 
 /**
  * Bug fix: this component received a `transactions` prop but never read it —
@@ -20,9 +20,9 @@ function FinanceSummary({ transactions, currency = "USD" }) {
 
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      <StatTile accent="emerald" label="Total Income" value={formatCurrency(income, currency)} />
-      <StatTile accent="red" label="Total Expense" value={formatCurrency(expense, currency)} />
-      <StatTile accent="indigo" label="Total Savings" value={formatCurrency(savings, currency)} />
+      <StatTile accent="emerald" label="Total Income" value={income} prefix={getCurrencySymbol(currency)} />
+      <StatTile accent="red" label="Total Expense" value={expense} prefix={getCurrencySymbol(currency)} />
+      <StatTile accent="indigo" label="Total Savings" value={savings} prefix={getCurrencySymbol(currency)} />
     </div>
   );
 }
