@@ -3,6 +3,8 @@
 ## Name
 **Digital Twin AI** — a full-stack personal life dashboard that tracks finance, study, and daily habits, then layers analytics and forward-looking predictions on top of that data.
 
+**Live:** [digital-twin-ai-7bd6.onrender.com](https://digital-twin-ai-7bd6.onrender.com) — deployed on Render from this repo's `Dockerfile` (single image, same-origin, `NODE_ENV=production`). Free-tier hosting, so the first request after a period of inactivity can take 20–30s to wake the container.
+
 ## Description
 Digital Twin AI is built with **FastAPI + MongoDB Atlas** (via async Motor + Beanie ODM) on the backend and **React 19 (Vite) + Tailwind CSS v4** on the frontend. It consolidates a user's finances, study sessions, and daily habits into one place, then runs analytics engines (productivity, focus, consistency, completion-percentage scores) and forecasting models on top — including a trained classifier that estimates the probability of a goal being completed by its deadline, and a scenario simulator.
 
