@@ -20,7 +20,7 @@ Method otherwise mirrors train_goal_model.py — split by user (never by row,
 since days from one person share that person's habits), base-rate baseline,
 Brier and ECE alongside AUC.
 
-Usage (from backend_api/):
+Usage (from backend/):
     python3 scripts/generate_synthetic_habits.py    # first
     python3 scripts/train_habit_failure_model.py
 """

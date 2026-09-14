@@ -70,9 +70,9 @@ this document.
 > deps (`pandas`, `matplotlib`, `pytest`, `requests`) moved to a new
 > `requirements-dev.txt`.
 
-> **`backend_api/models_store/` — the trained model the goal-completion endpoint
+> **`backend/models_store/` — the trained model the goal-completion endpoint
 > serves — is gitignored on purpose** (deterministic under `--seed`, same
-> convention as `backend_api/data/`), which means a deploy built from a bare
+> convention as `backend/data/`), which means a deploy built from a bare
 > clone with no extra step ships with predictions silently disabled forever
 > (the load failure is caught and logged, not fatal — so nothing crashes, the
 > feature just never exists). **Fixed** by making the model-build a real Docker
@@ -241,7 +241,7 @@ didn't:
 
 ### 1.1 Contract sweep over all 68 endpoints ✅ done
 
-Built as `backend_api/tests_integration/` — real HTTP requests through the real
+Built as `backend/tests_integration/` — real HTTP requests through the real
 app, real Beanie/Motor queries, against a real disposable local MongoDB. See
 `CLAUDE.md`'s Testing section for how to run it and why it's a separate suite
 from `tests/`.
@@ -396,7 +396,7 @@ nothing.
 
 Built as `frontend/tests_e2e/`, config at `frontend/playwright.config.js`. See
 `tests_e2e/README.md` for exact run instructions, including seeding a demo
-account (`backend_api/scripts/seed_playwright_user.py`) — the page walk was
+account (`backend/scripts/seed_playwright_user.py`) — the page walk was
 run against real data, not an empty account, matching the plan's own stated
 goal of proving pages "load, render real data, and throw nothing."
 
@@ -532,7 +532,7 @@ its own live server and its own session.
 
 ### 3.1 Schema and integrity ✅ done
 
-Built as `backend_api/scripts/audit_data_integrity.py` — read-only (no
+Built as `backend/scripts/audit_data_integrity.py` — read-only (no
 `require_non_production()` guard needed; it never writes), so it runs directly
 against the live cluster, which is the only way "does the live cluster actually
 have these indexes" is a real question rather than an assumption. Connects via

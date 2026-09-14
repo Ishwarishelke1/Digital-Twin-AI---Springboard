@@ -26,7 +26,7 @@ model recovers signal that genuinely exists, is calibrated, and beats a
 baseline. They do NOT show the model predicts real human behaviour. Only real
 longitudinal data can establish that.
 
-Usage (from backend_api/):
+Usage (from backend/):
     python3 scripts/generate_synthetic_users.py     # first
     python3 scripts/train_goal_model.py
 """

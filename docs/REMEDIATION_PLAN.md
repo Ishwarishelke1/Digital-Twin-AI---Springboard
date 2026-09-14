@@ -333,7 +333,7 @@ Ordered by user impact per unit of effort, and by dependency.
 
 ## Verification for every step
 
-- [ ] `cd backend_api && python3 -m pytest tests/ -q` — green
+- [ ] `cd backend && python3 -m pytest tests/ -q` — green
 - [ ] `cd frontend && npx eslint . && npx vite build` — clean
 - [ ] The token-diff guard from #2 returns empty
 - [ ] Contrast recomputed for any changed color, in **both** themes

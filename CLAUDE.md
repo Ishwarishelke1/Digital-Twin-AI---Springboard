@@ -6,25 +6,25 @@ For the forward-looking architecture roadmap — event sourcing, the ML models, 
 
 ## Stack
 
-- **Backend** (`backend_api/`): FastAPI + MongoDB Atlas via async Motor + Beanie ODM, JWT auth.
+- **Backend** (`backend/`): FastAPI + MongoDB Atlas via async Motor + Beanie ODM, JWT auth.
 - **Frontend** (`frontend/`): React 19 + Vite + Tailwind CSS v4.
 
 ## Running things
 
 ```bash
 # Backend
-cd backend_api && pip install -r requirements.txt
+cd backend && pip install -r requirements.txt
 python3 -m uvicorn main:app --reload          # http://127.0.0.1:8000, docs at /api/docs
 
 # Backend tests (no live DB needed — see "Testing" below)
-cd backend_api && python3 -m pytest tests/ -q
+cd backend && python3 -m pytest tests/ -q
 
 # Frontend
 cd frontend && npm install && npm run dev     # http://localhost:5173
 cd frontend && npx eslint . && npx vite build # lint + build check
 ```
 
-`backend_api/.env` must exist with `MONGODB_URI`, `MONGODB_DB_NAME`, `JWT_SECRET_KEY` at minimum (app fails to start without a real `JWT_SECRET_KEY` — see `core/config.py`). There is currently **no separate test/staging database** — `MONGODB_URI` points at one live Atlas cluster, and `MONGODB_DB_NAME` is `digital_twin_ai_prod`. Be deliberate about what you write there (throwaway test accounts are fine; don't touch real user data).
+`backend/.env` must exist with `MONGODB_URI`, `MONGODB_DB_NAME`, `JWT_SECRET_KEY` at minimum (app fails to start without a real `JWT_SECRET_KEY` — see `core/config.py`). There is currently **no separate test/staging database** — `MONGODB_URI` points at one live Atlas cluster, and `MONGODB_DB_NAME` is `digital_twin_ai_prod`. Be deliberate about what you write there (throwaway test accounts are fine; don't touch real user data).
 
 - **Destructive scripts must call `require_non_production()`** from `core/db_guard.py` before touching the database. It refuses to run when `NODE_ENV=production` or the database name contains `prod`/`production`/`live`, and the override (`DESTRUCTIVE_WRITE_ALLOW_DB`) must name the exact database — a truthy value won't do, so a stale export can't satisfy it. `scripts/seed_zohaib.py` is wired up; wire up any new script that deletes or overwrites. This exists because that script opens by `delete_many()`-ing three collections against whatever `.env` points at, which today is production. See README's "Staging vs. production data" for the workflow.
 
@@ -58,7 +58,7 @@ Backend tests run with **zero live database connection**. `tests/conftest.py` ca
 
 ```bash
 brew services start mongodb-community   # or: docker run -d -p 27017:27017 mongo:7
-cd backend_api && python3 -m pytest tests_integration/ -q
+cd backend && python3 -m pytest tests_integration/ -q
 ```
 
 Follow this pattern for anything that needs to exercise real routing/response-shape/cross-tenant behaviour rather than a single service function — not by adding a real DB dependency to `tests/`.

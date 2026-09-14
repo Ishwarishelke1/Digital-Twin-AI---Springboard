@@ -8,8 +8,8 @@ running defect log — one entry per finding, updated as the pass proceeds.
 
 | Suite | Result |
 | :-- | :-- |
-| `backend_api/tests/` (mocked DB, unit) | ✅ 367 passed |
-| `backend_api/tests_integration/` (real local Mongo, real HTTP) | ✅ 18 passed |
+| `backend/tests/` (mocked DB, unit) | ✅ 367 passed |
+| `backend/tests_integration/` (real local Mongo, real HTTP) | ✅ 18 passed |
 | `frontend` `npx eslint .` | ✅ clean |
 | `frontend` `npx vite build` | ✅ clean (pre-existing chunk-size warning only, not an error) |
 | `frontend/tests_e2e` Playwright page walk | ✅ 28/28 (light + dark, desktop) |

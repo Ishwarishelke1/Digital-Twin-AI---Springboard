@@ -7,7 +7,7 @@ scripts/benchmark_simulation.py for Milestone 4's "within 5 seconds" criterion.
 Pure read/compute — no HTTP, no auth, connects to Mongo directly and calls the
 same forecast_service.backtest_accuracy() the API endpoint uses.
 
-Usage (run from backend_api/, with a real backend_api/.env or root .env present):
+Usage (run from backend/, with a real backend/.env or root .env present):
     python3 scripts/backtest_forecast_accuracy.py --email zohaib@gmail.com
 """
 import argparse

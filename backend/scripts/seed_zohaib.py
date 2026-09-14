@@ -16,7 +16,7 @@ from pymongo import MongoClient
 from bson import Decimal128
 
 # Import from the package root so this runs the same way as the other scripts
-# (python3 scripts/seed_zohaib.py from backend_api/).
+# (python3 scripts/seed_zohaib.py from backend/).
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from core.db_guard import require_non_production  # noqa: E402

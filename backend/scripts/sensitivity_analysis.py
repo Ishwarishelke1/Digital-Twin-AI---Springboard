@@ -19,7 +19,7 @@ Method mirrors train_goal_model.py: same features, same split by user (never by
 row), same metrics. Kept self-contained rather than importing that script, since
 it is a CLI entry point rather than a library.
 
-Usage (from backend_api/):
+Usage (from backend/):
     python3 scripts/sensitivity_analysis.py
     python3 scripts/sensitivity_analysis.py --users 150 --out data/model_eval
 """

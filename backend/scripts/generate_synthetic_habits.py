@@ -32,7 +32,7 @@ label being sampled from a formula over features. Three mechanisms drive it:
 
 Stdlib only, deterministic under --seed.
 
-Usage (from backend_api/):
+Usage (from backend/):
     python3 scripts/generate_synthetic_habits.py
     python3 scripts/generate_synthetic_habits.py --users 200 --days 240
 """

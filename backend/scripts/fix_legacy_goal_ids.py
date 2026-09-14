@@ -16,7 +16,7 @@ breaks.
 Dry run by default; --apply is required. Guarded, so running against production
 needs the explicit override.
 
-Usage (from backend_api/):
+Usage (from backend/):
     python3 scripts/fix_legacy_goal_ids.py                              # dry run
     MONGODB_DB_NAME=<staging> python3 scripts/fix_legacy_goal_ids.py --apply
     DESTRUCTIVE_WRITE_ALLOW_DB=<db> python3 scripts/fix_legacy_goal_ids.py --apply

@@ -515,7 +515,7 @@ leaving it unsaid would have been.
 
 ## Reproducing the figures
 
-All figures reproduce deterministically from a fixed seed. From `backend_api/`:
+All figures reproduce deterministically from a fixed seed. From `backend/`:
 
 ```bash
 # Model 1 — goal completion (§6)
@@ -530,5 +530,5 @@ python3 scripts/train_habit_failure_model.py
 python3 scripts/sensitivity_analysis.py
 ```
 
-Metrics land in `backend_api/data/model_eval/` as JSON alongside reliability diagrams and
+Metrics land in `backend/data/model_eval/` as JSON alongside reliability diagrams and
 precision-at-k charts.

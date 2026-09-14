@@ -10,7 +10,7 @@ Digital Twin AI is built with **FastAPI + MongoDB Atlas** (via async Motor + Bea
 
 ```text
 Digital-Twin-AI---Springboard/
-├── backend_api/          FastAPI application (the live backend)
+├── backend/          FastAPI application (the live backend)
 │   ├── api/v1/            REST endpoints: auth, users, finance, study,
 │   │                       habits, habit-analytics, productivity, trends,
 │   │                       forecast, activity
@@ -83,7 +83,7 @@ GEMINI_API_KEY=
 GROQ_API_KEY=
 ```
 
-`backend_api/core/config.py` resolves this file's path relative to its own location, and `frontend/vite.config.js` sets `envDir` to the repo root — so this works regardless of which directory you run either app from. Only `VITE_`-prefixed vars ever reach client-side code, so backend secrets stay server-only even though the file is shared.
+`backend/core/config.py` resolves this file's path relative to its own location, and `frontend/vite.config.js` sets `envDir` to the repo root — so this works regardless of which directory you run either app from. Only `VITE_`-prefixed vars ever reach client-side code, so backend secrets stay server-only even though the file is shared.
 
 ### Staging vs. production data
 
@@ -114,7 +114,7 @@ Until step 4 is done, treat every migration as unrehearsed and irreversible.
 ### 1. Backend (FastAPI)
 
 ```bash
-cd backend_api
+cd backend
 pip install -r requirements.txt
 export PYTHONPATH=$(pwd)
 python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
@@ -144,7 +144,7 @@ docker run -d -p 8000:8000 --env-file .env -e NODE_ENV=production digital-twin-a
 What the image does, in three stages (see `Dockerfile` for the full commentary):
 
 1. **Builds the frontend** — no `VITE_API_URL` is set; the same-origin deploy means its relative `/api/v1` default (`frontend/src/services/api.js`) is already correct, so there's no build-time secret to pass in.
-2. **Trains the goal-completion model** — `backend_api/models_store/` is gitignored on purpose (deterministic under `--seed`, so regenerated rather than committed, same convention as `backend_api/data/`). The build runs `generate_synthetic_users.py` then `train_goal_model.py` so the image always ships with a real, working model rather than depending on someone having a binary checked out locally.
+2. **Trains the goal-completion model** — `backend/models_store/` is gitignored on purpose (deterministic under `--seed`, so regenerated rather than committed, same convention as `backend/data/`). The build runs `generate_synthetic_users.py` then `train_goal_model.py` so the image always ships with a real, working model rather than depending on someone having a binary checked out locally.
 3. **Assembles a slim runtime image** from both stages' outputs — no Node, pandas, or matplotlib in the final image, and `main.py` serves the built frontend directly (`StaticFiles` + an SPA fallback) whenever `frontend/dist` is present, so the same `main.py` runs unchanged in local dev (`--reload`, no build present) and in the container.
 
 **No secrets are ever baked into the image** — `.dockerignore` excludes `.env` explicitly. `MONGODB_URI`, `JWT_SECRET_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, and `NODE_ENV=production` all reach the container via `--env-file` (or your platform's own env-var mechanism) at *run* time.
@@ -180,14 +180,14 @@ Once both the backend and frontend are running (see **Installation**), open `htt
 ### Backend tests (no live DB needed)
 
 ```bash
-cd backend_api && python3 -m pytest tests/ -q
+cd backend && python3 -m pytest tests/ -q
 ```
 
 ### Integration tests (needs local MongoDB)
 
 ```bash
 brew services start mongodb-community   # or: docker run -d -p 27017:27017 mongo:7
-cd backend_api && python3 -m pytest tests_integration/ -q
+cd backend && python3 -m pytest tests_integration/ -q
 ```
 
 ### Frontend lint/build
@@ -203,7 +203,7 @@ See `frontend/tests_e2e/README.md` for exact run instructions — it needs a bac
 ### Training the goal-completion model
 
 ```bash
-cd backend_api
+cd backend
 python3 scripts/generate_synthetic_users.py   # training data
 python3 scripts/train_goal_model.py           # train, evaluate, save artifact
 ```
@@ -227,7 +227,7 @@ Two deliberate constraints:
 
 ### Maintenance scripts
 
-All live in `backend_api/scripts/` and are dry-run by default where they change data.
+All live in `backend/scripts/` and are dry-run by default where they change data.
 
 | Script | Purpose |
 | :--- | :--- |

@@ -6,7 +6,7 @@ import api from "./api";
 
 /**
  * Sends a message to the AI assistant and gets a grounded reply back
- * (Gemini primary, Groq fallback — see backend_api/services/ai_assistant_service.py).
+ * (Gemini primary, Groq fallback — see backend/services/ai_assistant_service.py).
  * The reply is grounded in the user's live finance, study, habit, forecast and
  * what-if data — not just profile/goals.
  * POST /api/v1/assistant/chat

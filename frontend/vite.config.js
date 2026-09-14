@@ -9,7 +9,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   // The common .env lives at the repo root (shared with the backend — see
-  // backend_api/core/config.py's _ROOT_ENV_FILE), not inside frontend/.
+  // backend/core/config.py's _ROOT_ENV_FILE), not inside frontend/.
   // Only VITE_-prefixed vars from it are ever exposed to client-side code.
   envDir: resolve(__dirname, ".."),
   server: {

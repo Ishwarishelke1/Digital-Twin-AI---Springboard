@@ -16,7 +16,7 @@ Safety model — deliberately fail-safe:
     study activities, habit logs, activity entries, simulations, recommendations
     and assistant feedback.
 
-Usage (from backend_api/):
+Usage (from backend/):
     python3 scripts/cleanup_test_accounts.py                     # dry run
     python3 scripts/cleanup_test_accounts.py --apply             # delete (non-prod)
     DESTRUCTIVE_WRITE_ALLOW_DB=<db> python3 scripts/cleanup_test_accounts.py --apply

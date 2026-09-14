@@ -32,7 +32,7 @@ longitudinal data can do that. Say so in any writeup.
 
 Stdlib only, deterministic under --seed.
 
-Usage (from backend_api/):
+Usage (from backend/):
     python3 scripts/generate_synthetic_users.py
     python3 scripts/generate_synthetic_users.py --users 200 --out data/synthetic
 """

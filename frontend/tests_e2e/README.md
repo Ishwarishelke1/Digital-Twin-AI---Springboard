@@ -14,7 +14,7 @@ the Vite dev server, not the backend or a database:
 # 1. A backend, pointed at a database with real data in it (never digital_twin_ai_prod
 #    for a repeated local test run — see Phase 3's own reasoning for why this
 #    project keeps write-heavy test runs off the real cluster):
-cd backend_api
+cd backend
 python3 -c "from pymongo import MongoClient; MongoClient('mongodb://localhost:27017').drop_database('digital_twin_ai_playwright_test')"
 MONGODB_URI="mongodb://localhost:27017" MONGODB_DB_NAME="digital_twin_ai_playwright_test" \
   JWT_SECRET_KEY="playwright-local-secret" python3 -m scripts.seed_playwright_user

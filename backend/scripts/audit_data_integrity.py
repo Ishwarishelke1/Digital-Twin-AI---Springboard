@@ -24,7 +24,7 @@ current_value manually edited away from what its linked records would sum to is
 allowed (ActiveGoalUpdateRequest.current_value exists for exactly that), so a
 mismatch there is worth a human's eyes, not an automatic failure.
 
-Usage (from backend_api/):
+Usage (from backend/):
     python3 scripts/audit_data_integrity.py
 """
 from __future__ import annotations

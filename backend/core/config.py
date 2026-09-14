@@ -12,7 +12,7 @@ from functools import lru_cache
 _INSECURE_JWT_SECRET_PLACEHOLDER = "CHANGE-THIS-SECRET-IN-PRODUCTION"
 
 # The common .env lives at the repo root (shared with the frontend — see
-# frontend/vite.config.js's envDir), not inside backend_api/. Resolved from
+# frontend/vite.config.js's envDir), not inside backend/. Resolved from
 # this file's own location rather than a bare relative ".env" so it's found
 # correctly regardless of the CWD the server is launched from.
 _ROOT_ENV_FILE = Path(__file__).resolve().parent.parent.parent / ".env"

@@ -16,7 +16,7 @@ Safety:
     this, and the script additionally refuses if target == source.
   - The scratch database is dropped at the end unless --keep is passed.
 
-Usage (from backend_api/):
+Usage (from backend/):
     python3 scripts/backup_restore_drill.py                  # full drill, cleans up
     python3 scripts/backup_restore_drill.py --keep           # leave the restored copy
     python3 scripts/backup_restore_drill.py --dump-only      # just take a backup
