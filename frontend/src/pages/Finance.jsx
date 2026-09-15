@@ -126,7 +126,7 @@ function buildExpenseChartData(transactions, forecast) {
 }
 
 function Finance() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
 
   /*
    * Get every FINANCE goal created by the user.
@@ -312,6 +312,10 @@ function Finance() {
       toast.success("Transaction added successfully.");
 
       setAddDrawerOpen(false);
+
+      // Re-syncs active_goals off AuthContext so a linked goal's progress
+      // reflects this transaction immediately, not just after reload.
+      refreshUser().catch(() => {});
     } catch (err) {
       console.error("Failed to add transaction:", err);
 
@@ -367,6 +371,8 @@ function Finance() {
       );
 
       setEditingRecord(null);
+
+      refreshUser().catch(() => {});
     } catch (err) {
       console.error(
         "Failed to update transaction:",
@@ -402,6 +408,8 @@ function Finance() {
       );
 
       toast.success("Transaction deleted.");
+
+      refreshUser().catch(() => {});
     } catch (err) {
       console.error(
         "Failed to delete transaction:",
@@ -563,7 +571,7 @@ function Finance() {
         open={!!editingRecord}
         onClose={() => setEditingRecord(null)}
         title="Edit Transaction"
-        maxWidth="max-w-xl"
+        maxWidth="max-w-2xl"
       >
         <TransactionForm
           initialData={editingRecord}

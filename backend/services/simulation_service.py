@@ -29,7 +29,7 @@ from typing import Optional
 from beanie import PydanticObjectId
 
 from core.exceptions import BusinessRuleError, NotFoundError
-from models.enums import GoalCategory, Priority, RecommendationCategory, SimulationDomain, UserFeedback
+from models.enums import GoalCategory, Priority, RecommendationCategory, RiskTolerance, SimulationDomain, UserFeedback
 from models.simulation import MetricPoint, Recommendation, ScenarioResult, Simulation
 from models.user import ActiveGoal, User
 from schemas.simulation_schema import (
@@ -70,9 +70,41 @@ WATER_TARGET_LITERS = 2.0
 SCREEN_TIME_HEALTHY_MAX = 6.0
 
 # ─── Recommendation engine weights ─────────────────────────────────────────────
-OUTCOME_WEIGHT = 0.5
-GOAL_IMPACT_WEIGHT = 0.3
-CONFIDENCE_WEIGHT = 0.2
+# Per-domain scenario scoring shifts by the user's own risk_tolerance (Profile.risk_tolerance,
+# defaults to MODERATE, which reproduces the pre-existing 50/30/20 constants and pre-existing
+# recommendations unchanged for any user who never set a preference).
+#
+# Two independent mechanisms, because one alone isn't enough: every scenario set here is built
+# as Current/Target/Stretch with strictly-increasing deltas (more saving, more study hours, more
+# exercise), so the Stretch scenario's outcome AND goal-progress are, by construction, never worse
+# than Target's or Current's. Re-weighting outcome/goal-impact/confidence alone (RISK_TOLERANCE_
+# WEIGHTS below) therefore never changes which scenario wins — it only rescales the displayed
+# score uniformly (verified: with a fixed 3-scenario input, every weight row in this table picks
+# the same argmax). What actually lets a conservative user land on a smaller scenario is
+# RISK_STRETCH_PENALTY: a penalty proportional to each scenario's own "stretch" (how far its
+# delta is from the 0.0-multiplier baseline, e.g. Stretch Plan's multiplier 1.5 vs Current Plan's
+# 0.0 — see _RawScenario.intensity), applied to its outcome ratio before scoring. This only
+# flips the winner when the marginal gain from Target to Stretch is already thin relative to how
+# much bigger an ask Stretch is (diminishing returns) — a real Stretch improvement with no
+# plateau still wins even for a conservative user, which is the correct behavior: there's no
+# genuine risk being asked of them when the numbers keep climbing cleanly.
+RISK_TOLERANCE_WEIGHTS: dict[RiskTolerance, tuple[float, float, float]] = {
+    # (outcome_weight, goal_impact_weight, confidence_weight) — each row sums to 1.0
+    RiskTolerance.CONSERVATIVE: (0.3, 0.3, 0.4),
+    RiskTolerance.MODERATE: (0.5, 0.3, 0.2),
+    RiskTolerance.AGGRESSIVE: (0.65, 0.25, 0.1),
+}
+RISK_STRETCH_PENALTY: dict[RiskTolerance, float] = {
+    # Subtracted from a scenario's outcome_ratio, scaled by its intensity (0=baseline, 1=max
+    # stretch offered in this domain) and clamped back into [0, 1]. CONSERVATIVE is penalized
+    # (pulls big-ask scenarios down when their edge over a smaller ask is thin), MODERATE is
+    # exactly 0.0 (today's unmodified behavior), AGGRESSIVE is a small negative penalty — a
+    # bonus that nudges bigger-ask scenarios up further on close calls.
+    RiskTolerance.CONSERVATIVE: 0.6,
+    RiskTolerance.MODERATE: 0.0,
+    RiskTolerance.AGGRESSIVE: -0.15,
+}
+OUTCOME_WEIGHT, GOAL_IMPACT_WEIGHT, CONFIDENCE_WEIGHT = RISK_TOLERANCE_WEIGHTS[RiskTolerance.MODERATE]
 
 
 # ─── Pure helpers: generic min-max scoring (no I/O — unit-tested directly) ────
@@ -100,16 +132,34 @@ def _normalize_optional(values: list[Optional[float]], higher_is_better: bool) -
 
 
 def _score_scenarios(
-    primary_values: list[float], goal_months: list[Optional[float]], confidence: float
+    primary_values: list[float],
+    goal_months: list[Optional[float]],
+    confidence: float,
+    risk_tolerance: RiskTolerance = RiskTolerance.MODERATE,
+    scenario_intensity: Optional[list[float]] = None,
 ) -> list[float]:
-    """Shared multi-factor recommendation score (0-100) for every domain:
-    50% relative outcome improvement within this scenario set, 30% relative goal-completion
-    impact (fewer months remaining scores higher; no matching goal is scored neutral),
-    20% confidence in the underlying data the scenario was projected from."""
+    """Shared multi-factor recommendation score (0-100) for every domain: a blend of relative
+    outcome improvement within this scenario set, relative goal-completion impact (fewer months
+    remaining scores higher; no matching goal is scored neutral), and confidence in the underlying
+    data the scenario was projected from. The three weights come from RISK_TOLERANCE_WEIGHTS,
+    keyed by the user's own Profile.risk_tolerance (MODERATE — the default for any user who
+    hasn't set one — reproduces the original fixed 50/30/20 split).
+
+    scenario_intensity (parallel to primary_values, each in roughly [0, 1] — see
+    _RawScenario.intensity) lets RISK_STRETCH_PENALTY pull a scenario's outcome_ratio down
+    (CONSERVATIVE) or nudge it up (AGGRESSIVE) in proportion to how big an ask it represents,
+    before the weighted blend below runs. Omit it (None, the default) to skip this entirely —
+    every existing caller/test that predates risk-aware scoring is unaffected."""
+    outcome_weight, goal_impact_weight, confidence_weight = RISK_TOLERANCE_WEIGHTS[risk_tolerance]
     outcome_ratios = _normalize_optional(list(primary_values), higher_is_better=True)
     goal_ratios = _normalize_optional(goal_months, higher_is_better=False)
+    penalty = RISK_STRETCH_PENALTY[risk_tolerance]
+    if scenario_intensity is not None and penalty != 0.0:
+        outcome_ratios = [
+            _clamp(o - penalty * intensity, 0.0, 1.0) for o, intensity in zip(outcome_ratios, scenario_intensity)
+        ]
     return [
-        round(100 * (OUTCOME_WEIGHT * o + GOAL_IMPACT_WEIGHT * g + CONFIDENCE_WEIGHT * confidence), 2)
+        round(100 * (outcome_weight * o + goal_impact_weight * g + confidence_weight * confidence), 2)
         for o, g in zip(outcome_ratios, goal_ratios)
     ]
 
@@ -146,13 +196,14 @@ def _average_months_to_goals(
 
 def _finance_scenario_deltas(
     additional_monthly_saving: float, expense_reduction_pct: float
-) -> list[tuple[str, float, float]]:
+) -> list[tuple[str, float, float, float]]:
     """When the caller doesn't specify any target delta, fall back to a modest
-    stretch goal (10% expense reduction) so the scenario set isn't degenerate."""
+    stretch goal (10% expense reduction) so the scenario set isn't degenerate.
+    The trailing float is the raw multiplier (0.0/1.0/1.5) — see _RawScenario.intensity."""
     if additional_monthly_saving == 0 and expense_reduction_pct == 0:
         expense_reduction_pct = DEFAULT_FINANCE_EXPENSE_REDUCTION_STRETCH_PCT
     return [
-        (name, additional_monthly_saving * m, expense_reduction_pct * m)
+        (name, additional_monthly_saving * m, expense_reduction_pct * m, m)
         for m, name in FINANCE_SCENARIO_MULTIPLIERS
     ]
 
@@ -170,9 +221,10 @@ def _finance_scenario_outcome(
 
 # ─── Study: pure scenario math ─────────────────────────────────────────────────
 
-def _study_scenario_deltas(additional_weekly_study_hours: float) -> list[tuple[str, float]]:
+def _study_scenario_deltas(additional_weekly_study_hours: float) -> list[tuple[str, float, float]]:
+    """The trailing float is the raw multiplier (0.0/1.0/1.5) — see _RawScenario.intensity."""
     hours = additional_weekly_study_hours if additional_weekly_study_hours > 0 else DEFAULT_STUDY_HOURS_STRETCH
-    return [(name, hours * m) for m, name in STUDY_SCENARIO_MULTIPLIERS]
+    return [(name, hours * m, m) for m, name in STUDY_SCENARIO_MULTIPLIERS]
 
 
 def _study_scenario_outcome(
@@ -192,10 +244,11 @@ def _study_scenario_outcome(
 
 def _fitness_scenario_deltas(
     additional_exercise_minutes: float, sleep_adjustment_hours: float
-) -> list[tuple[str, float, float]]:
+) -> list[tuple[str, float, float, float]]:
+    """The trailing float is the raw multiplier (0.0/1.0/1.5) — see _RawScenario.intensity."""
     exercise = additional_exercise_minutes if additional_exercise_minutes > 0 else DEFAULT_FITNESS_EXERCISE_STRETCH_MINUTES
     sleep = sleep_adjustment_hours
-    return [(name, exercise * m, sleep * m) for m, name in FITNESS_SCENARIO_MULTIPLIERS]
+    return [(name, exercise * m, sleep * m, m) for m, name in FITNESS_SCENARIO_MULTIPLIERS]
 
 
 def _sleep_score(hours: float) -> float:
@@ -249,6 +302,7 @@ class _RawScenario:
     primary_metric_value: float
     goal_months: Optional[float]
     confidence_score: float
+    intensity: float = 0.0  # 0.0 = baseline (no ask), 1.0 = the biggest ask offered in this domain
 
 
 def _build_recommendation_text(domain_label: str, best: _RawScenario, baseline_name: str) -> tuple[str, str]:
@@ -286,8 +340,9 @@ class DecisionSimulationService:
 
         finance_goals = [g for g in user.active_goals if g.category == GoalCategory.FINANCE]
 
+        max_multiplier = max(m for m, _ in FINANCE_SCENARIO_MULTIPLIERS)
         raw_scenarios: list[_RawScenario] = []
-        for name, additional_saving, expense_reduction_pct in _finance_scenario_deltas(
+        for name, additional_saving, expense_reduction_pct, multiplier in _finance_scenario_deltas(
             request.additional_monthly_saving, request.expense_reduction_pct
         ):
             monthly_saving, future_saving = _finance_scenario_outcome(
@@ -306,12 +361,14 @@ class DecisionSimulationService:
                     primary_metric_value=future_saving,
                     goal_months=goal_months,
                     confidence_score=confidence,
+                    intensity=multiplier / max_multiplier,
                 )
             )
 
         return await self._finalize(
             user_id, SimulationDomain.FINANCE, RecommendationCategory.FINANCE,
             request.model_dump(), raw_scenarios, baseline_name="Current Plan", persist=persist,
+            risk_tolerance=user.profile.risk_tolerance,
         )
 
     # ── Study ───────────────────────────────────────────────────────────────
@@ -344,8 +401,9 @@ class DecisionSimulationService:
 
         study_goals = [g for g in user.active_goals if g.category == GoalCategory.STUDY]
 
+        max_multiplier = max(m for m, _ in STUDY_SCENARIO_MULTIPLIERS)
         raw_scenarios: list[_RawScenario] = []
-        for name, delta_hours in _study_scenario_deltas(request.additional_weekly_study_hours):
+        for name, delta_hours, multiplier in _study_scenario_deltas(request.additional_weekly_study_hours):
             projected_score, new_weekly_hours = _study_scenario_outcome(baseline_score, baseline_weekly_hours, delta_hours)
             monthly_rate = new_weekly_hours * WEEKS_PER_MONTH
             goal_months = _average_months_to_goals(study_goals, monthly_rate)
@@ -361,12 +419,14 @@ class DecisionSimulationService:
                     primary_metric_value=projected_score,
                     goal_months=goal_months,
                     confidence_score=confidence,
+                    intensity=multiplier / max_multiplier,
                 )
             )
 
         return await self._finalize(
             user_id, SimulationDomain.ACADEMIC, RecommendationCategory.ACADEMIC,
             request.model_dump(), raw_scenarios, baseline_name="Current Pace", persist=persist,
+            risk_tolerance=user.profile.risk_tolerance,
         )
 
     # ── Fitness ─────────────────────────────────────────────────────────────
@@ -393,8 +453,9 @@ class DecisionSimulationService:
 
         fitness_goals = [g for g in user.active_goals if g.category in (GoalCategory.HABIT, GoalCategory.FITNESS)]
 
+        max_multiplier = max(m for m, _ in FITNESS_SCENARIO_MULTIPLIERS)
         raw_scenarios: list[_RawScenario] = []
-        for name, exercise_delta, sleep_delta in _fitness_scenario_deltas(
+        for name, exercise_delta, sleep_delta, multiplier in _fitness_scenario_deltas(
             request.additional_exercise_minutes, request.sleep_adjustment_hours
         ):
             habit_score, new_exercise, new_sleep = _fitness_scenario_outcome(
@@ -427,18 +488,24 @@ class DecisionSimulationService:
                     primary_metric_value=habit_score,
                     goal_months=goal_months,
                     confidence_score=confidence,
+                    intensity=multiplier / max_multiplier,
                 )
             )
 
         return await self._finalize(
             user_id, SimulationDomain.HABIT, RecommendationCategory.FITNESS,
             request.model_dump(), raw_scenarios, baseline_name="Current Routine", persist=persist,
+            risk_tolerance=user.profile.risk_tolerance,
         )
 
     # ── Hybrid (combines all three domains into named lifestyle scenarios) ──
     async def simulate_hybrid_scenarios(
         self, user_id: str, request: HybridScenarioRequest
     ) -> SimulationResponse:
+        user = await User.get(PydanticObjectId(user_id))
+        if not user:
+            raise NotFoundError("User", user_id)
+
         finance_req = FinanceScenarioRequest(
             additional_monthly_saving=request.additional_monthly_saving,
             months_ahead=request.months_ahead,
@@ -474,6 +541,7 @@ class DecisionSimulationService:
             ("Aggressive Fitness Focus", 0.2, 0.2, 1.0),
         ]
         raw_scenarios: list[_RawScenario] = []
+        max_weight_total = max(fw + sw + ftw for _, fw, sw, ftw in named_combinations)
         for name, finance_w, study_w, fitness_w in named_combinations:
             weight_total = finance_w + study_w + fitness_w
             # Weighted average of each domain's own best score, normalized by the total
@@ -494,12 +562,14 @@ class DecisionSimulationService:
                     primary_metric_value=composite_score,
                     goal_months=None,
                     confidence_score=confidence,
+                    intensity=weight_total / max_weight_total,
                 )
             )
 
         return await self._finalize(
             user_id, SimulationDomain.HYBRID_LIFESTYLE, RecommendationCategory.WELL_BEING,
             request.model_dump(), raw_scenarios, baseline_name="Status Quo",
+            risk_tolerance=user.profile.risk_tolerance,
         )
 
     # ── Comparison across domains ────────────────────────────────────────────
@@ -564,11 +634,13 @@ class DecisionSimulationService:
         raw_scenarios: list[_RawScenario],
         baseline_name: str,
         persist: bool = True,
+        risk_tolerance: RiskTolerance = RiskTolerance.MODERATE,
     ) -> SimulationResponse:
         primary_values = [s.primary_metric_value for s in raw_scenarios]
         goal_months = [s.goal_months for s in raw_scenarios]
+        scenario_intensity = [s.intensity for s in raw_scenarios]
         confidence = raw_scenarios[0].confidence_score if raw_scenarios else 0.0
-        scores = _score_scenarios(primary_values, goal_months, confidence)
+        scores = _score_scenarios(primary_values, goal_months, confidence, risk_tolerance, scenario_intensity)
 
         scenario_docs = [
             ScenarioResult(

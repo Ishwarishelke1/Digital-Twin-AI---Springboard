@@ -61,6 +61,7 @@ _COVERED_ROUTES = {
     ("DELETE", "/api/v1/study/sessions/{session_id}"),
     ("GET", "/api/v1/study/analytics/subject-performance"),
     ("POST", "/api/v1/habits/daily-log"),
+    ("PATCH", "/api/v1/habits/daily-log/{log_id}"),
     ("GET", "/api/v1/habits/daily-log"),
     ("DELETE", "/api/v1/habits/daily-log/{log_id}"),
     ("GET", "/api/v1/habits/analytics/kmeans-features"),
@@ -353,6 +354,13 @@ async def test_habits_full_cycle(user_a):
 
     r = await user_a.get("/api/v1/habits/analytics/kmeans-features")
     assert r.status_code == 200, r.text
+
+    # PATCH edits a field without touching log_date (see HabitUpdateRequest's docstring
+    # for why date correction isn't offered here).
+    r = await user_a.patch(f"/api/v1/habits/daily-log/{log_id}", json={"mood_rating": 5})
+    assert r.status_code == 200, r.text
+    assert r.json()["mood_rating"] == 5
+    assert r.json()["id"] == log_id
 
     r = await user_a.delete(f"/api/v1/habits/daily-log/{log_id}")
     assert r.status_code in (200, 204), r.text

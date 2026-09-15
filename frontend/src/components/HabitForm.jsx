@@ -3,16 +3,28 @@ import { toast } from "react-toastify";
 import { Input, Select } from "./ui/Field";
 import Button from "./ui/Button";
 
-function HabitForm({ addHabit, goals = [] }) {
-  const [formData, setFormData] = useState({
-    date: "",
-    water: "",
-    sleep: "",
-    exercise: "",
-    screenTime: "",
-    mood: "Happy",
-    linked_goal_id: "",
-  });
+const DEFAULT_FORM = {
+  date: "",
+  water: "",
+  sleep: "",
+  exercise: "",
+  screenTime: "",
+  mood: "Happy",
+  linked_goal_id: "",
+};
+
+function HabitForm({
+  addHabit,
+  goals = [],
+  initialData = null,
+  onUpdate = null,
+  onCancel = null,
+}) {
+  const [formData, setFormData] = useState(
+    initialData
+      ? { ...DEFAULT_FORM, ...initialData, linked_goal_id: initialData.linked_goal_id || "" }
+      : DEFAULT_FORM
+  );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
@@ -46,17 +58,12 @@ function HabitForm({ addHabit, goals = [] }) {
     setIsSubmitting(true);
 
     try {
-      await addHabit(formData);
-
-      setFormData({
-        date: "",
-        water: "",
-        sleep: "",
-        exercise: "",
-        screenTime: "",
-        mood: "Happy",
-        linked_goal_id: "",
-      });
+      if (initialData && onUpdate) {
+        await onUpdate(initialData.id, formData);
+      } else {
+        await addHabit(formData);
+        setFormData(DEFAULT_FORM);
+      }
     } catch (err) {
       console.error("HabitForm submission error:", err);
     } finally {
@@ -74,6 +81,8 @@ function HabitForm({ addHabit, goals = [] }) {
           value={formData.date}
           onChange={handleChange}
           error={fieldErrors.date}
+          disabled={!!initialData}
+          title={initialData ? "The day of a log can't be changed — delete and re-log instead." : undefined}
         />
 
         <Input
@@ -153,13 +162,22 @@ function HabitForm({ addHabit, goals = [] }) {
 
       </div>
 
-      <Button
-        type="submit"
-        className="mt-5"
-        disabled={isSubmitting}
-      >
-        {isSubmitting ? "Saving..." : "Save Habit"}
-      </Button>
+      <div className="mt-5 flex gap-2.5">
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Saving..." : initialData ? "Update Habit" : "Save Habit"}
+        </Button>
+
+        {initialData && onCancel && (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onCancel}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+        )}
+      </div>
     </form>
   );
 }

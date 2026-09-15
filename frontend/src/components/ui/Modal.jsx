@@ -1,13 +1,17 @@
 import { useEffect, useRef } from "react";
+import { X } from "lucide-react";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
 
 /**
  * Shared overlay base for ConfirmDialog and every ad-hoc edit-record modal
- * (Finance/Study/Profile). Provides what the audit found missing from every
+ * (Finance/Study/Habits/Goals). Provides what the audit found missing from every
  * hand-rolled `position:fixed` overlay in the app: a focus trap, Escape-to-close,
  * and focus returned to the trigger on close — implemented once here instead
- * of per-instance.
+ * of per-instance. Also renders `title` as a real, visible heading plus a
+ * close button — same header Drawer.jsx already has — rather than leaving
+ * `title` as aria-only text, which is how the edit-record modals ended up
+ * with no visible heading and no way to close except clicking outside.
  */
 function Modal({ open, onClose, title, children, maxWidth = "max-w-md" }) {
   const panelRef = useRef(null);
@@ -65,6 +69,19 @@ function Modal({ open, onClose, title, children, maxWidth = "max-w-md" }) {
         tabIndex={-1}
         className={`animate-modal-in @container max-h-[90vh] w-full ${maxWidth} overflow-y-auto rounded-2xl bg-white p-5 shadow-xl focus:outline-none dark:bg-slate-800`}
       >
+        {title && (
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{title}</h3>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        )}
         {children}
       </div>
     </div>

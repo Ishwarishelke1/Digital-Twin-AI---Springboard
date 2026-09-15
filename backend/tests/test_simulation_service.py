@@ -19,7 +19,7 @@ import pytest
 from beanie import PydanticObjectId
 
 from core.exceptions import BusinessRuleError, NotFoundError
-from models.enums import GoalCategory, SimulationDomain, SimulationStatus
+from models.enums import GoalCategory, RiskTolerance, SimulationDomain, SimulationStatus
 from models.simulation import Recommendation, ScenarioResult, Simulation
 from models.user import ActiveGoal, Profile, User
 from schemas.forecast_schema import (
@@ -109,6 +109,73 @@ def test_score_scenarios_goal_impact_rewards_fewer_months():
     assert scores[1] > scores[0]
 
 
+def test_score_scenarios_default_risk_tolerance_is_moderate_and_unchanged():
+    # No risk_tolerance/scenario_intensity passed -> identical to pre-risk-aware behavior.
+    scores = _score_scenarios([100.0, 200.0, 300.0], [None, None, None], confidence=0.8)
+    moderate_scores = _score_scenarios(
+        [100.0, 200.0, 300.0], [None, None, None], confidence=0.8, risk_tolerance=RiskTolerance.MODERATE
+    )
+    assert scores == moderate_scores
+
+
+def test_score_scenarios_without_intensity_ignores_risk_tolerance_penalty():
+    # scenario_intensity=None (the default) -> CONSERVATIVE's penalty never applies, even
+    # though its outcome/goal-impact/confidence weights still differ from MODERATE's.
+    conservative = _score_scenarios(
+        [1000.0, 4500.0, 4600.0], [24.0, 8.2, 8.0], confidence=0.6, risk_tolerance=RiskTolerance.CONSERVATIVE
+    )
+    assert ["Current", "Target", "Stretch"][conservative.index(max(conservative))] == "Stretch"
+
+
+def test_score_scenarios_conservative_prefers_smaller_ask_on_diminishing_returns():
+    # Target -> Stretch barely improves the outcome for a much bigger ask (intensity 0.67 -> 1.0).
+    # A conservative user should land on Target instead of Stretch; moderate/aggressive keep Stretch.
+    primary_values = [1000.0, 4500.0, 4600.0]
+    goal_months = [24.0, 8.2, 8.0]
+    intensity = [0.0, 1.0 / 1.5, 1.0]
+    labels = ["Current", "Target", "Stretch"]
+
+    conservative = _score_scenarios(
+        primary_values, goal_months, confidence=0.6,
+        risk_tolerance=RiskTolerance.CONSERVATIVE, scenario_intensity=intensity,
+    )
+    moderate = _score_scenarios(
+        primary_values, goal_months, confidence=0.6,
+        risk_tolerance=RiskTolerance.MODERATE, scenario_intensity=intensity,
+    )
+    aggressive = _score_scenarios(
+        primary_values, goal_months, confidence=0.6,
+        risk_tolerance=RiskTolerance.AGGRESSIVE, scenario_intensity=intensity,
+    )
+
+    assert labels[conservative.index(max(conservative))] == "Target"
+    assert labels[moderate.index(max(moderate))] == "Stretch"
+    assert labels[aggressive.index(max(aggressive))] == "Stretch"
+
+
+def test_score_scenarios_conservative_still_prefers_a_real_stretch_improvement():
+    # No diminishing returns here (each step is a real, proportionate improvement) -> even a
+    # conservative user should still land on Stretch. Risk-aversion only kicks in on a thin edge.
+    primary_values = [1000.0, 5000.0, 7500.0]
+    goal_months = [24.0, 8.0, 5.0]
+    intensity = [0.0, 1.0 / 1.5, 1.0]
+    labels = ["Current", "Target", "Stretch"]
+
+    conservative = _score_scenarios(
+        primary_values, goal_months, confidence=0.6,
+        risk_tolerance=RiskTolerance.CONSERVATIVE, scenario_intensity=intensity,
+    )
+    assert labels[conservative.index(max(conservative))] == "Stretch"
+
+
+def test_score_scenarios_stays_within_bounds_with_intensity_penalty_applied():
+    scores = _score_scenarios(
+        [0.0, 50.0, 100.0], [10.0, 5.0, None], confidence=0.5,
+        risk_tolerance=RiskTolerance.CONSERVATIVE, scenario_intensity=[0.0, 0.5, 1.0],
+    )
+    assert all(0 <= s <= 100 for s in scores)
+
+
 # ─── _estimate_months_to_goal / _average_months_to_goals ──────────────────────
 
 def test_estimate_months_to_goal_already_met():
@@ -145,14 +212,14 @@ def test_finance_scenario_deltas_uses_stretch_fallback_when_zero():
     deltas = _finance_scenario_deltas(additional_monthly_saving=0, expense_reduction_pct=0)
     names = [d[0] for d in deltas]
     assert names == ["Current Plan", "Target Plan", "Stretch Plan"]
-    assert deltas[0] == ("Current Plan", 0.0, 0.0)
+    assert deltas[0] == ("Current Plan", 0.0, 0.0, 0.0)
     assert deltas[1][2] == 10.0  # DEFAULT_FINANCE_EXPENSE_REDUCTION_STRETCH_PCT
 
 
 def test_finance_scenario_deltas_scales_requested_delta():
     deltas = _finance_scenario_deltas(additional_monthly_saving=2000, expense_reduction_pct=0)
-    assert deltas[1] == ("Target Plan", 2000.0, 0.0)
-    assert deltas[2] == ("Stretch Plan", 3000.0, 0.0)
+    assert deltas[1] == ("Target Plan", 2000.0, 0.0, 1.0)
+    assert deltas[2] == ("Stretch Plan", 3000.0, 0.0, 1.5)
 
 
 def test_finance_scenario_outcome_basic():
@@ -367,6 +434,42 @@ async def test_simulate_finance_scenarios_persists_when_called_directly():
 
     assert sim_insert_mock.await_count == 1
     assert rec_insert_mock.await_count == 1
+
+
+def _fake_user_with_risk(risk_tolerance: RiskTolerance) -> User:
+    return User.model_construct(
+        email="sim@example.com",
+        password_hash="hashed",
+        profile=Profile(name="Sim User", age=25, monthly_income_baseline=Decimal("0"), risk_tolerance=risk_tolerance),
+        active_goals=[],
+    )
+
+
+@pytest.mark.asyncio
+async def test_simulate_finance_scenarios_reads_risk_tolerance_from_the_users_own_profile():
+    """Wiring test: Profile.risk_tolerance must actually reach the scoring engine, not just
+    exist on the model. A conservative and a moderate user hitting the identical underlying
+    finance data must not get identical scenario scores — RISK_STRETCH_PENALTY is 0.0 only
+    for MODERATE, so CONSERVATIVE's non-zero penalty must show up in the response."""
+    from schemas.simulation_schema import FinanceScenarioRequest
+
+    service = DecisionSimulationService()
+
+    async def _run(user: User):
+        with ExitStack() as stack:
+            stack.enter_context(_patch_user_get(user))
+            for p in _patch_finance_engine(income=50000.0, expense=40000.0):
+                stack.enter_context(p)
+            for p in _patch_insert():
+                stack.enter_context(p)
+            return await service.simulate_finance_scenarios(VALID_USER_ID, FinanceScenarioRequest())
+
+    conservative_result = await _run(_fake_user_with_risk(RiskTolerance.CONSERVATIVE))
+    moderate_result = await _run(_fake_user_with_risk(RiskTolerance.MODERATE))
+
+    conservative_scores = [s.score for s in conservative_result.scenarios]
+    moderate_scores = [s.score for s in moderate_result.scenarios]
+    assert conservative_scores != moderate_scores
 
 
 @pytest.mark.asyncio

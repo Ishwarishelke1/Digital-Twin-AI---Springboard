@@ -18,7 +18,7 @@ from core.exceptions import NotFoundError
 from models.enums import BurnoutRisk
 from models.habit import HabitTracking
 from models.user import User
-from schemas.habit_schema import HabitCreateRequest
+from schemas.habit_schema import HabitCreateRequest, HabitUpdateRequest
 import services.habit_service as habit_service
 
 USER_ID = "507f1f77bcf86cd799439011"
@@ -219,6 +219,120 @@ async def test_upsert_daily_log_relog_same_goal_link_leaves_progress_alone():
         await habit_service.upsert_daily_log(USER_ID, payload)
 
     goal_collection.find_one_and_update.assert_not_awaited()
+
+
+# ─── update_log ───────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_update_log_normal_case():
+    record = HabitTracking.model_construct(
+        user_id=PydanticObjectId(USER_ID), sleep_hours=Decimal("7.0"), exercise_minutes=20,
+        water_intake_liters=Decimal("2.0"), screen_time_hours=Decimal("5.0"),
+        mood_rating=3, meditation_minutes=None,
+        productivity_score_computed=None, lifestyle_score_computed=None,
+        burnout_risk_cluster=BurnoutRisk.UNKNOWN, linked_goal_id=None,
+        log_date=datetime(2026, 8, 18, tzinfo=timezone.utc), created_at=datetime.now(timezone.utc),
+    )
+    record.id = PydanticObjectId(LOG_ID)
+
+    with patch.object(HabitTracking, "find_one", new=AsyncMock(return_value=record)), \
+         patch.object(HabitTracking, "save", new=AsyncMock()), \
+         patch("services.habit_service.activity_service.log_activity", new=AsyncMock()):
+        result = await habit_service.update_log(
+            USER_ID, LOG_ID, HabitUpdateRequest(sleep_hours=Decimal("8.0"))
+        )
+    assert result.sleep_hours == Decimal("8.0")
+
+
+@pytest.mark.asyncio
+async def test_update_log_does_not_touch_log_date():
+    """HabitUpdateRequest has no log_date field at all — the unique
+    (user_id, log_date) index means editing it belongs to delete + re-log,
+    not an in-place PATCH."""
+    original_date = datetime(2026, 8, 18, tzinfo=timezone.utc)
+    record = HabitTracking.model_construct(
+        user_id=PydanticObjectId(USER_ID), sleep_hours=Decimal("7.0"), exercise_minutes=20,
+        water_intake_liters=Decimal("2.0"), screen_time_hours=Decimal("5.0"),
+        mood_rating=3, meditation_minutes=None,
+        productivity_score_computed=None, lifestyle_score_computed=None,
+        burnout_risk_cluster=BurnoutRisk.UNKNOWN, linked_goal_id=None,
+        log_date=original_date, created_at=datetime.now(timezone.utc),
+    )
+    record.id = PydanticObjectId(LOG_ID)
+
+    with patch.object(HabitTracking, "find_one", new=AsyncMock(return_value=record)), \
+         patch.object(HabitTracking, "save", new=AsyncMock()), \
+         patch("services.habit_service.activity_service.log_activity", new=AsyncMock()):
+        result = await habit_service.update_log(
+            USER_ID, LOG_ID, HabitUpdateRequest(mood_rating=5)
+        )
+    assert result.log_date == original_date
+
+
+@pytest.mark.asyncio
+async def test_update_log_relinking_goal_moves_the_flat_progress():
+    record = HabitTracking.model_construct(
+        user_id=PydanticObjectId(USER_ID), sleep_hours=Decimal("7.0"), exercise_minutes=20,
+        water_intake_liters=Decimal("2.0"), screen_time_hours=Decimal("5.0"),
+        mood_rating=3, meditation_minutes=None,
+        productivity_score_computed=None, lifestyle_score_computed=None,
+        burnout_risk_cluster=BurnoutRisk.UNKNOWN, linked_goal_id=GOAL_ID,
+        log_date=datetime(2026, 8, 18, tzinfo=timezone.utc), created_at=datetime.now(timezone.utc),
+    )
+    record.id = PydanticObjectId(LOG_ID)
+
+    goal_patch, collection = _patch_goal_update()
+    with patch.object(HabitTracking, "find_one", new=AsyncMock(return_value=record)), \
+         patch.object(HabitTracking, "save", new=AsyncMock()), \
+         patch("services.habit_service.activity_service.log_activity", new=AsyncMock()), \
+         goal_patch:
+        await habit_service.update_log(
+            USER_ID, LOG_ID, HabitUpdateRequest(linked_goal_id=OTHER_GOAL_ID)
+        )
+
+    assert collection.find_one_and_update.await_count == 2
+    first_filter, first_update = collection.find_one_and_update.await_args_list[0].args
+    assert first_filter["active_goals.goal_id"] == GOAL_ID
+    assert first_update["$inc"]["active_goals.$.current_value"].to_decimal() == Decimal("-1")
+    second_filter, second_update = collection.find_one_and_update.await_args_list[1].args
+    assert second_filter["active_goals.goal_id"] == OTHER_GOAL_ID
+    assert second_update["$inc"]["active_goals.$.current_value"].to_decimal() == Decimal("1")
+
+
+@pytest.mark.asyncio
+async def test_update_log_editing_unrelated_field_leaves_progress_alone():
+    record = HabitTracking.model_construct(
+        user_id=PydanticObjectId(USER_ID), sleep_hours=Decimal("7.0"), exercise_minutes=20,
+        water_intake_liters=Decimal("2.0"), screen_time_hours=Decimal("5.0"),
+        mood_rating=3, meditation_minutes=None,
+        productivity_score_computed=None, lifestyle_score_computed=None,
+        burnout_risk_cluster=BurnoutRisk.UNKNOWN, linked_goal_id=GOAL_ID,
+        log_date=datetime(2026, 8, 18, tzinfo=timezone.utc), created_at=datetime.now(timezone.utc),
+    )
+    record.id = PydanticObjectId(LOG_ID)
+
+    goal_patch, collection = _patch_goal_update()
+    with patch.object(HabitTracking, "find_one", new=AsyncMock(return_value=record)), \
+         patch.object(HabitTracking, "save", new=AsyncMock()), \
+         patch("services.habit_service.activity_service.log_activity", new=AsyncMock()), \
+         goal_patch:
+        await habit_service.update_log(
+            USER_ID, LOG_ID, HabitUpdateRequest(mood_rating=5)
+        )
+    collection.find_one_and_update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_update_log_not_found_bad_id_format():
+    with pytest.raises(NotFoundError):
+        await habit_service.update_log(USER_ID, "not-an-object-id", HabitUpdateRequest())
+
+
+@pytest.mark.asyncio
+async def test_update_log_not_found_valid_id_no_match():
+    with patch.object(HabitTracking, "find_one", new=AsyncMock(return_value=None)):
+        with pytest.raises(NotFoundError):
+            await habit_service.update_log(USER_ID, LOG_ID, HabitUpdateRequest())
 
 
 # ─── delete_daily_log ─────────────────────────────────────────────────────────────

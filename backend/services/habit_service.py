@@ -20,6 +20,7 @@ from models.habit import HabitTracking
 from models.enums import BurnoutRisk, SleepBand
 from schemas.habit_schema import (
     HabitCreateRequest,
+    HabitUpdateRequest,
     HabitRecordResponse,
     PaginatedHabitResponse,
     KMeansFeatureRow,
@@ -143,6 +144,57 @@ async def upsert_daily_log(
         entity_type="HABIT",
         entity_id=str(record.id),
         description=f"Upserted habit log for {log_date.date()}",
+    )
+
+    return _to_response(record)
+
+
+async def update_log(
+    user_id: str, log_id: str, payload: HabitUpdateRequest
+) -> HabitRecordResponse:
+    """
+    Edits an existing habit log in place (log_date is never touched — see
+    HabitUpdateRequest's docstring). Unlike upsert_daily_log, this is a plain
+    ODM update via record.save(), so Decimal -> Decimal128 conversion is
+    handled automatically rather than needing the manual Decimal128(...) calls
+    upsert_daily_log uses for its raw Motor find_one_and_update.
+    """
+    uid = PydanticObjectId(user_id)
+    try:
+        lid = PydanticObjectId(log_id)
+    except Exception:
+        raise NotFoundError("Habit log", log_id)
+
+    record = await HabitTracking.find_one({"_id": lid, "user_id": uid})
+    if not record:
+        raise NotFoundError("Habit log", log_id)
+
+    old_linked_goal_id = record.linked_goal_id
+
+    update_data = payload.model_dump(exclude_unset=True)
+    if not update_data:
+        return _to_response(record)
+
+    for key, value in update_data.items():
+        setattr(record, key, value)
+
+    # Re-link (or unlink) moves the flat +1 contribution from the old goal to
+    # the new one — never both, never neither. Same reasoning as
+    # study_service.update_session.
+    if record.linked_goal_id != old_linked_goal_id:
+        if old_linked_goal_id:
+            await adjust_active_goal_progress(user_id, old_linked_goal_id, -GOAL_PROGRESS_PER_LINK)
+        if record.linked_goal_id:
+            await adjust_active_goal_progress(user_id, record.linked_goal_id, GOAL_PROGRESS_PER_LINK)
+
+    await record.save()
+
+    await activity_service.log_activity(
+        user_id=user_id,
+        action_type="UPDATED_HABIT",
+        entity_type="HABIT",
+        entity_id=str(record.id),
+        description=f"Updated habit log for {record.log_date.date()}",
     )
 
     return _to_response(record)

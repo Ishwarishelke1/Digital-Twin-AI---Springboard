@@ -15,6 +15,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import Pagination from "../components/Pagination";
 import Button from "../components/ui/Button";
 import Drawer from "../components/ui/Drawer";
+import Modal from "../components/ui/Modal";
 import StaggerIn from "../components/ui/StaggerIn";
 import {
   SkeletonStatGrid,
@@ -24,13 +25,14 @@ import {
 import {
   getHabitLogs,
   logDailyHabit,
+  updateHabitLog,
   deleteHabitLog,
 } from "../services/habitService";
-import { getUser } from "../services/userService";
 import {
   getHabitTrend,
 } from "../services/habitAnalyticsService";
 import { getApiErrorMessage } from "../utils/apiError";
+import { useAuth } from "../context/useAuth";
 
 const MOOD_LABELS = {
   5: "Excellent",
@@ -38,6 +40,13 @@ const MOOD_LABELS = {
   3: "Normal",
   2: "Sad",
   1: "Sad",
+};
+
+const MOOD_TO_RATING = {
+  Excellent: 5,
+  Happy: 4,
+  Normal: 3,
+  Sad: 2,
 };
 
 function toDisplayHabit(record) {
@@ -61,7 +70,7 @@ function buildHabitChartData(dailyTrend) {
 }
 
 function Habits() {
-  const [user, setUser] = useState(null);
+  const { user, refreshUser } = useAuth();
 
   const recommendations = useAIRecommendations(getHabitRecommendations);
 
@@ -69,6 +78,7 @@ function Habits() {
   const [habitChartData, setHabitChartData] = useState([]);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [editingRecord, setEditingRecord] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [addDrawerOpen, setAddDrawerOpen] = useState(false);
 
@@ -92,12 +102,12 @@ function Habits() {
         // The analytics summary used to be fetched here to build the insight
         // lines client-side. The recommendations endpoint computes the same
         // summary server-side now, so this page no longer asks for it.
-        const [result, trend, userData] =
-          await Promise.all([
-            getHabitLogs({ limit: 30 }),
-            getHabitTrend({ dailyDays: 7 }),
-            getUser(),
-          ]);
+        // `user` (and active_goals) come from AuthContext, not a local fetch
+        // — ProtectedRoute already loads it before this page mounts.
+        const [result, trend] = await Promise.all([
+          getHabitLogs({ limit: 30 }),
+          getHabitTrend({ dailyDays: 7 }),
+        ]);
 
         setHabitList(
           (result.data || []).map(toDisplayHabit)
@@ -108,8 +118,6 @@ function Habits() {
         setHabitChartData(
           buildHabitChartData(trend.daily || [])
         );
-
-        setUser(userData);
       } catch (err) {
         console.error("Failed to fetch habit logs:", err);
 
@@ -191,13 +199,6 @@ function Habits() {
 
   async function addHabit(formData) {
     try {
-      const moodMap = {
-        Excellent: 5,
-        Happy: 4,
-        Normal: 3,
-        Sad: 2,
-      };
-
       const payload = {
         sleep_hours: Number(formData.sleep),
 
@@ -209,7 +210,7 @@ function Habits() {
           formData.screenTime || 0
         ),
 
-        mood_rating: moodMap[formData.mood] ?? 3,
+        mood_rating: MOOD_TO_RATING[formData.mood] ?? 3,
 
         /*
          * Habit Goal
@@ -251,6 +252,11 @@ function Habits() {
       toast.success("Habit log saved successfully.");
 
       setAddDrawerOpen(false);
+
+      // Re-syncs active_goals off AuthContext so a linked goal's progress
+      // (read by GoalProgressCard here, and by every other page sharing the
+      // same context) reflects this log immediately, not just after reload.
+      refreshUser().catch(() => {});
     } catch (err) {
       console.error("Failed to add habit log:", err);
 
@@ -264,6 +270,64 @@ function Habits() {
       throw err;
     }
   }
+
+  /**
+   * Edits an existing log. log_date is never sent — the backend's unique
+   * (user_id, log_date) index means the day itself isn't editable in place;
+   * HabitForm disables that field whenever it's given initialData.
+   */
+  const handleUpdate = async (id, formData) => {
+    try {
+      const payload = {
+        sleep_hours: Number(formData.sleep),
+        exercise_minutes: Number(formData.exercise),
+        water_intake_liters: Number(formData.water),
+        screen_time_hours: Number(formData.screenTime || 0),
+        mood_rating: MOOD_TO_RATING[formData.mood] ?? 3,
+        linked_goal_id: formData.linked_goal_id || null,
+      };
+
+      const updatedRecord = toDisplayHabit(
+        await updateHabitLog(id, payload)
+      );
+
+      setHabitList((prev) =>
+        prev.map((h) => (h.id === id ? updatedRecord : h))
+      );
+
+      const trend = await getHabitTrend({ dailyDays: 7 });
+      setHabitChartData(buildHabitChartData(trend.daily || []));
+
+      toast.success("Habit log updated successfully.");
+      setEditingRecord(null);
+
+      refreshUser().catch(() => {});
+    } catch (err) {
+      console.error("Failed to update habit log:", err);
+
+      toast.error(
+        getApiErrorMessage(
+          err,
+          "Failed to update habit log. Please try again."
+        )
+      );
+
+      throw err;
+    }
+  };
+
+  const startEdit = (record) => {
+    setEditingRecord({
+      id: record.id,
+      date: record.log_date ? String(record.log_date).substring(0, 10) : "",
+      water: record.water_intake_liters ?? "",
+      sleep: record.sleep_hours ?? "",
+      exercise: record.exercise_minutes ?? "",
+      screenTime: record.screen_time_hours ?? "",
+      mood: MOOD_LABELS[record.mood_rating] ?? "Normal",
+      linked_goal_id: record.linked_goal_id || "",
+    });
+  };
 
   const handleDelete = (id) => {
     setConfirmDeleteId(id);
@@ -282,6 +346,8 @@ function Habits() {
       );
 
       toast.success("Habit log deleted.");
+
+      refreshUser().catch(() => {});
     } catch (err) {
       console.error(
         "Failed to delete habit log:",
@@ -360,6 +426,7 @@ function Habits() {
 
           <HabitTable
             habits={habitList}
+            onEdit={startEdit}
             onDelete={handleDelete}
             isLoading={isTableLoading}
             moodFilter={moodFilter}
@@ -389,6 +456,20 @@ function Habits() {
           goals={habitGoals}
         />
       </Drawer>
+
+      <Modal
+        open={!!editingRecord}
+        onClose={() => setEditingRecord(null)}
+        title="Edit Habit Log"
+        maxWidth="max-w-2xl"
+      >
+        <HabitForm
+          initialData={editingRecord}
+          onUpdate={handleUpdate}
+          goals={habitGoals}
+          onCancel={() => setEditingRecord(null)}
+        />
+      </Modal>
 
       <ConfirmDialog
         open={confirmDeleteId !== null}

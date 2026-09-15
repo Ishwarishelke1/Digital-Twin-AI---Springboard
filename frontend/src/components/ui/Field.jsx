@@ -1,9 +1,14 @@
 import { Children, useEffect, useId, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
-const inputClasses = `w-full rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-100
+/* border-slate-300 + bg-slate-50 (not bg-white) so the box reads against a white
+ * Modal/Card/Drawer panel — a white input on a literal white panel border in
+ * slate-200 was ~1.1:1 contrast, effectively invisible. slate-50 is already used
+ * elsewhere as a "recessed" fill inside white cards (e.g. table row hover), so
+ * this reuses an existing convention rather than inventing a new one. */
+const inputClasses = `w-full rounded-lg border border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800 px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-100
   placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20
-  dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500`;
+  dark:text-slate-100 dark:placeholder:text-slate-500`;
 
 const errorClasses = "border-red-500 focus:border-red-500 focus:ring-red-500/20 dark:border-red-500";
 

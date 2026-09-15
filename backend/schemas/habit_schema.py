@@ -30,6 +30,24 @@ class HabitCreateRequest(BaseModel):
     log_date: Optional[datetime] = None
 
 
+class HabitUpdateRequest(BaseModel):
+    """
+    PATCH /api/v1/habits/daily-log/{id}
+    Edits an existing log (typically a past day's entry) without touching its
+    log_date — the unique (user_id, log_date) index means changing the date
+    here would collide with, or silently create, a different day's log, so
+    date correction isn't offered; delete and re-log instead.
+    """
+    sleep_hours: Optional[Decimal] = Field(default=None, ge=0, le=24)
+    exercise_minutes: Optional[int] = Field(default=None, ge=0, le=1440)
+    water_intake_liters: Optional[Decimal] = Field(default=None, ge=0, le=20)
+    screen_time_hours: Optional[Decimal] = Field(default=None, ge=0, le=24)
+    mood_rating: Optional[int] = Field(default=None, ge=1, le=5)
+    meditation_minutes: Optional[int] = Field(default=None, ge=0, le=1440)
+
+    linked_goal_id: Optional[str] = None
+
+
 class HabitRecordResponse(BaseModel):
     id: str
     user_id: str

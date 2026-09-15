@@ -57,7 +57,7 @@ function buildWeeklyChart(sessions) {
 }
 
 function Study() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
 
   /*
    * Only STUDY-category goals are shown in the Study form.
@@ -233,6 +233,10 @@ function Study() {
 
       toast.success("Study session logged successfully.");
       setAddDrawerOpen(false);
+
+      // Re-syncs active_goals off AuthContext so a linked goal's progress
+      // reflects this session immediately, not just after reload.
+      refreshUser().catch(() => {});
     } catch (err) {
       console.error("Failed to add study session:", err);
 
@@ -290,6 +294,8 @@ function Study() {
 
       toast.success("Study session updated successfully.");
       setEditingRecord(null);
+
+      refreshUser().catch(() => {});
     } catch (err) {
       console.error("Failed to update session:", err);
 
@@ -322,6 +328,8 @@ function Study() {
       });
 
       toast.success("Study session deleted.");
+
+      refreshUser().catch(() => {});
     } catch (err) {
       console.error("Failed to delete session:", err);
       toast.error("Failed to delete study session.");
@@ -489,7 +497,7 @@ function Study() {
         open={!!editingRecord}
         onClose={() => setEditingRecord(null)}
         title="Edit Study Session"
-        maxWidth="max-w-xl"
+        maxWidth="max-w-2xl"
       >
 
         <StudyForm

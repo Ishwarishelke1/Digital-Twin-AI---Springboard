@@ -27,6 +27,20 @@ export const logDailyHabit = async (payload) => {
   return response.data;
 };
 
+/**
+ * Edit an existing habit log (typically a past day's entry). log_date is
+ * never part of this payload — the backend's unique (user_id, log_date)
+ * index means changing it belongs to delete + re-log, not a PATCH.
+ * PATCH /api/v1/habits/daily-log/{id}
+ * @param {string} id
+ * @param {{ sleep_hours?, exercise_minutes?, water_intake_liters?, screen_time_hours?, mood_rating?, meditation_minutes?, linked_goal_id? }} payload
+ * @returns {Promise<HabitRecordResponse>}
+ */
+export const updateHabitLog = async (id, payload) => {
+  const response = await api.patch(`/habits/daily-log/${id}`, payload);
+  return response.data;
+};
+
 export const deleteHabitLog = async (id) => {
   const response = await api.delete(`/habits/daily-log/${id}`);
   return response.data;

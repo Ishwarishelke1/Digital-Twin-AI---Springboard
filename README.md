@@ -245,9 +245,9 @@ All live in `backend/scripts/` and are dry-run by default where they change data
 - **Auth** — JWT issued as an **httpOnly cookie** (not readable by frontend JS), carrying a token-version claim so logout and password-change invalidate every previously issued token at once.
 - **Finance** — income/expense/savings tracking, category breakdowns, savings-goal progress.
 - **Study** — session logging, weekly study-hours chart, subject performance breakdown.
-- **Habits** — daily sleep/water/exercise/screen-time logging with weekly habit-score trend.
+- **Habits** — daily sleep/water/exercise/screen-time logging (editable after the fact via `PATCH`, without disturbing the log's date) with weekly habit-score trend.
 - **Analytics** — productivity score, focus score, consistency score, and completion-percentage engines that power the dashboards.
-- **Prediction** — trend-based forecasts for savings, study, and fitness scores, and a scenario simulator. Forecasts auto-select a method from how much history exists (`insufficient_data` → `naive_last_value` → `moving_average` → `linear_regression`) and report which one was used.
+- **Prediction** — trend-based forecasts for savings, study, and fitness scores, and a scenario simulator. Forecasts auto-select a method from how much history exists (`insufficient_data` → `naive_last_value` → `moving_average` → `linear_regression`) and report which one was used. The simulator's recommendations are **risk-tolerance-aware** — a user's Conservative/Moderate/Aggressive profile setting shifts scenario scoring, favoring the safer option when a bigger ask's marginal gain is thin, and never overriding a genuine, non-plateauing improvement.
 - **Goal-completion model** — a trained classifier estimating the probability a goal is met by its deadline.
 - **Assistant** — grounded chat over the user's own profile, goals and twin state, using Gemini with a Groq fallback. Rate-limited, since LLM calls cost quota.
 - **Activity** — a unified audit log of create/update/delete actions across the app.

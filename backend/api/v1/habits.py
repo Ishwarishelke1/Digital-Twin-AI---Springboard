@@ -1,8 +1,9 @@
 """
 api/v1/habits.py — Habit data collection endpoints.
-POST /api/v1/habits/daily-log                  → upsert today's biometric check-in
-GET  /api/v1/habits/daily-log                  → paginated habit log history
-GET  /api/v1/habits/analytics/kmeans-features  → 4D feature matrix for K-Means ML
+POST  /api/v1/habits/daily-log                  → upsert today's biometric check-in
+PATCH /api/v1/habits/daily-log/{id}             → edit an existing log (any day)
+GET   /api/v1/habits/daily-log                  → paginated habit log history
+GET   /api/v1/habits/analytics/kmeans-features  → 4D feature matrix for K-Means ML
 """
 import logging
 
@@ -14,6 +15,7 @@ from typing import Optional
 from models.enums import SleepBand
 from schemas.habit_schema import (
     HabitCreateRequest,
+    HabitUpdateRequest,
     HabitRecordResponse,
     PaginatedHabitResponse,
     KMeansFeatureRow,
@@ -41,6 +43,20 @@ async def upsert_daily_log(
     Returns 200 (not 201) because this is an upsert — the record may already exist.
     """
     return await habit_service.upsert_daily_log(str(current_user.id), payload)
+
+
+@router.patch(
+    "/daily-log/{log_id}",
+    response_model=HabitRecordResponse,
+    summary="Update an existing habit log",
+)
+async def update_daily_log(
+    log_id: str,
+    payload: HabitUpdateRequest,
+    current_user: CurrentUser,
+) -> HabitRecordResponse:
+    """Edits a habit log (typically a past day's entry) without changing its log_date."""
+    return await habit_service.update_log(str(current_user.id), log_id, payload)
 
 
 @router.delete(
