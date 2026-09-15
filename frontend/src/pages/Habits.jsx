@@ -325,7 +325,14 @@ function Habits() {
       exercise: record.exercise_minutes ?? "",
       screenTime: record.screen_time_hours ?? "",
       mood: MOOD_LABELS[record.mood_rating] ?? "Normal",
-      linked_goal_id: record.linked_goal_id || "",
+      // Preserve the linked goal when editing — but only if that goal still
+      // exists. A goal deleted after this log was linked to it leaves a
+      // dangling linked_goal_id that matches nothing in habitGoals; the
+      // Select would render blank instead of "No Goal" for an ID it can't
+      // find an option for.
+      linked_goal_id: habitGoals.some((g) => g.goal_id === record.linked_goal_id)
+        ? record.linked_goal_id
+        : "",
     });
   };
 

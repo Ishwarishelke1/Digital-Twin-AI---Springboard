@@ -28,12 +28,19 @@ from services.goal_progress_service import adjust_active_goal_progress
 
 logger = logging.getLogger("digital_twin_ai.finance_service")
 
-# Only these transaction types genuinely represent progress toward a savings-
-# style goal — an EXPENSE or INCOME linked to a goal shouldn't move its
-# current_value (an earlier version of this file added the raw amount for
-# every linked transaction regardless of type, which counted spending as
-# progress).
-GOAL_PROGRESS_TYPES = {TransactionType.SAVINGS_DEPOSIT, TransactionType.INVESTMENT}
+# Only these transaction types genuinely represent progress toward a goal —
+# an EXPENSE linked to a goal shouldn't move its current_value (an earlier
+# version of this file added the raw amount for every linked transaction
+# regardless of type, which counted spending as progress). INCOME is
+# included because a user earmarking money they've received (e.g. salary)
+# toward a savings-style goal (buying something, an emergency fund) is
+# genuine progress — the same reasoning that includes SAVINGS_DEPOSIT and
+# INVESTMENT.
+GOAL_PROGRESS_TYPES = {
+    TransactionType.INCOME,
+    TransactionType.SAVINGS_DEPOSIT,
+    TransactionType.INVESTMENT,
+}
 
 
 def _goal_contribution(

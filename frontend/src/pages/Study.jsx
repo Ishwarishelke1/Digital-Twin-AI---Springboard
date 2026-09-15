@@ -360,8 +360,14 @@ function Study() {
       session_type:
         record.session_type || "DEEP_WORK",
 
-      linked_goal_id:
-        record.linked_goal_id || "",
+      // Preserve the linked goal when editing — but only if that goal still
+      // exists. A goal deleted after this session was linked to it leaves a
+      // dangling linked_goal_id that matches nothing in studyGoals; the
+      // Select would render blank instead of "No Goal" for an ID it can't
+      // find an option for.
+      linked_goal_id: studyGoals.some((g) => g.goal_id === record.linked_goal_id)
+        ? record.linked_goal_id
+        : "",
 
       quiz_marks: record.quiz_marks ?? "",
       max_quiz_marks: record.max_quiz_marks ?? "",

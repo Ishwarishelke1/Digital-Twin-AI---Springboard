@@ -445,9 +445,14 @@ function Finance() {
 
       description: record.description || "",
 
-      // Preserve the linked goal when editing
-      linked_goal_id:
-        record.linked_goal_id || "",
+      // Preserve the linked goal when editing — but only if that goal still
+      // exists. A goal deleted after this record was linked to it leaves a
+      // dangling linked_goal_id that matches nothing in financeGoals; the
+      // Select would render blank instead of "No Goal" for an ID it can't
+      // find an option for.
+      linked_goal_id: financeGoals.some((g) => g.goal_id === record.linked_goal_id)
+        ? record.linked_goal_id
+        : "",
 
       is_recurring: !!record.is_recurring,
       recurring_frequency: record.recurring_frequency || "",

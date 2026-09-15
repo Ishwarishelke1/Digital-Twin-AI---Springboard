@@ -119,7 +119,8 @@ async def test_create_transaction_savings_deposit_increments_linked_goal():
 async def test_create_transaction_expense_does_not_touch_linked_goal():
     """Regression test for a real bug: an EXPENSE linked to a goal used to add
     its raw amount to the goal's progress regardless of type — spending counted
-    as savings. Only SAVINGS_DEPOSIT/INVESTMENT should move a goal's current_value."""
+    as savings. Only SAVINGS_DEPOSIT/INVESTMENT/INCOME should move a goal's
+    current_value."""
     payload = FinanceCreateRequest(
         type=TransactionType.EXPENSE, amount=Decimal("200"),
         category=FinancialCategory.FOOD, linked_goal_id=GOAL_ID,
@@ -132,6 +133,28 @@ async def test_create_transaction_expense_does_not_touch_linked_goal():
         await finance_service.create_transaction(USER_ID, payload)
 
     collection.find_one_and_update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_transaction_income_increments_linked_goal():
+    """An INCOME linked to a goal counts as progress too — earmarking money
+    you've received toward a goal (e.g. salary set aside for a purchase) is
+    genuine progress, the same reasoning as SAVINGS_DEPOSIT/INVESTMENT."""
+    payload = FinanceCreateRequest(
+        type=TransactionType.INCOME, amount=Decimal("21000"),
+        category=FinancialCategory.SALARY, linked_goal_id=GOAL_ID,
+    )
+    goal_patch, collection = _patch_goal_update()
+    with _patch_document_init(), \
+         patch.object(FinancialRecord, "insert", new=_fake_insert()), \
+         patch("services.finance_service.activity_service.log_activity", new=AsyncMock()), \
+         goal_patch:
+        await finance_service.create_transaction(USER_ID, payload)
+
+    collection.find_one_and_update.assert_awaited_once()
+    filter_arg, update_arg = collection.find_one_and_update.call_args.args
+    assert filter_arg == {"_id": PydanticObjectId(USER_ID), "active_goals.goal_id": GOAL_ID}
+    assert update_arg["$inc"]["active_goals.$.current_value"].to_decimal() == Decimal("21000")
 
 
 # ─── update_transaction ─────────────────────────────────────────────────────────
