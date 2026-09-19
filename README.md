@@ -286,7 +286,7 @@ This is a capstone/student project. If you'd like to contribute:
 Built as part of a Springboard capstone project.
 
 ## License
-No license has been specified for this project yet.
+MIT license.
 
 ## Project status
 Actively developed. Core features (finance, study, habits, analytics, forecasting, the goal-completion model, and the AI assistant) are built and working; the broader architecture roadmap in `docs/IMPLEMENTATION_PLAN.md` (event sourcing, causal reasoning, simulation) is still in planning. See `docs/TEST_PLAN.md` for current test-coverage status (Phase 0 complete, Phases 1–3 in progress).
